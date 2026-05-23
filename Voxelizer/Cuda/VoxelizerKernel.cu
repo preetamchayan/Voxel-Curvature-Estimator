@@ -184,7 +184,7 @@ __device__ void updateMinMax(int2* points, int numPoints, int2 yBound, int2* min
     }
 }
 
-__device__ void digitalTriangle2D(int2 p1, int2 p2, int2 p3, float4 plane, int maximum, char axis, unsigned char* voxels, int3 dim, int3 minBound) {
+__device__ void digitalTriangle2D(int2 p1, int2 p2, int2 p3, int4 plane, int maximum, char axis, unsigned char* voxels, int3 dim, int3 minBound) {
     int2 yBound;
     yBound.x = min(min(p1.y, p2.y), p3.y);
     yBound.y = max(max(p1.y, p2.y), p3.y);
@@ -230,7 +230,7 @@ __device__ void digitalTriangle3D(int3 p1, int3 p2, int3 p3, unsigned char* voxe
     int3 p12 = {p2.x - p1.x, p2.y - p1.y, p2.z - p1.z};
     int3 p13 = {p3.x - p1.x, p3.y - p1.y, p3.z - p1.z};
 
-    float4 plane;
+    int4 plane;
     plane.x = p12.y * p13.z - p13.y * p12.z;
     plane.y = p13.x * p12.z - p12.x * p13.z;
     plane.z = p12.x * p13.y - p13.x * p12.y;
@@ -254,7 +254,7 @@ __device__ void digitalTriangle3D(int3 p1, int3 p2, int3 p3, unsigned char* voxe
 
     int maxDim = max(max(abs((int)plane.x), abs((int)plane.y)), abs((int)plane.z));
     int2 _p1, _p2, _p3;
-    float4 _plane;
+    int4 _plane;
     char axis;
     if (maxDim == abs((int)plane.x)) {
         _p1.x = p1.y; _p1.y = p1.z; _p2.x = p2.y; _p2.y = p2.z; _p3.x = p3.y; _p3.y = p3.z;
