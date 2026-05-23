@@ -1,0 +1,20 @@
+I want to include the .cu files in the tasks.json file.
+There are two options, I compile the .cu files with nvcc,
+and the .cpp files with g++.
+Later, I link the compiled .o files using g++.
+Second option is to compile everything with nvcc.
+With both the options, the problem is that someone without
+cuda support won't be able to compile anything.
+What I want is, someone without cuda support can also build and
+run my code. Just that he won't be able to use the cuda option.
+
+There is another option. I create a separate build task specific for cuda.
+If someone sets cuda for voxelizer, he should choose the cuda
+build path to build and run.
+That means, I can use build options for every path. Not a good idea, I guess.
+
+The system should be robust. Someone should clone my code, set something
+(serial, opencl, vulkan, directx, cuda), and run without touching anything else.
+If any of them is not supported, the code should fall back to serial.
+It's not like someone does not have cuda, and is not able to even run serial code.
+Think on this.

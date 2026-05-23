@@ -1,0 +1,211 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "build (debug)",
+      "dependsOn": ["compile shader"],
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-std=c++17",
+        "-Wall",
+        "-O0",
+        "-g",
+        "main.cpp",
+        "Helper/OcTree/OcTree.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Voxelizer/Voxelizer.cpp",
+        "Voxelizer/OpenCL/OclEnv.cpp",
+        "Voxelizer/DirectX/DirectxEnv.cpp",
+        "Voxelizer/Vulkan/VulkanEnv.cpp",
+        "-o",
+        "voxelizer",
+        "-lOpenCL",
+        "-lvulkan"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "compile shader",
+      "type": "shell",
+      "command": "glslangValidator",
+      "args": [
+        "-V",
+        "Voxelizer/Vulkan/VoxelizerKernel.comp",
+        "-o",
+        "Voxelizer/Vulkan/VoxelizerKernel.spv"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "build (release)",
+      "dependsOn": ["compile shader"],
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-std=c++17",
+        "-Wall",
+        "-O2",
+        "main.cpp",
+        "Helper/OcTree/OcTree.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Voxelizer/Voxelizer.cpp",
+        "Voxelizer/OpenCL/OclEnv.cpp",
+        "Voxelizer/DirectX/DirectxEnv.cpp",
+        "Voxelizer/Vulkan/VulkanEnv.cpp",
+        "-o",
+        "voxelizer",
+        "-lOpenCL",
+        "-lvulkan"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "compile cuda env (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "Voxelizer/Cuda/CudaEnv.cu",
+        "-o",
+        "Voxelizer/Cuda/CudaEnv.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile cuda kernel (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "Voxelizer/Cuda/VoxelizerKernel.cu",
+        "-o",
+        "Voxelizer/Cuda/VoxelizerKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "build (debug - cuda)",
+      "dependsOn": ["compile cuda env (debug)", "compile cuda kernel (debug)"],
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-std=c++17",
+        "-Wall",
+        "-O0",
+        "-g",
+        "main.cpp",
+        "Helper/OcTree/OcTree.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Voxelizer/Voxelizer.cpp",
+        "Voxelizer/OpenCL/OclEnv.cpp",
+        "Voxelizer/DirectX/DirectxEnv.cpp",
+        "Voxelizer/Vulkan/VulkanEnv.cpp",
+        "Voxelizer/Cuda/CudaEnv.o",
+        "Voxelizer/Cuda/VoxelizerKernel.o",
+        "-I/usr/local/cuda/include",
+        "-o",
+        "voxelizer",
+        "-lOpenCL",
+        "-lvulkan",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "compile cuda env (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "Voxelizer/Cuda/CudaEnv.cu",
+        "-o",
+        "Voxelizer/Cuda/CudaEnv.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile cuda kernel (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "Voxelizer/Cuda/VoxelizerKernel.cu",
+        "-o",
+        "Voxelizer/Cuda/VoxelizerKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "build (release - cuda)",
+      "dependsOn": ["compile cuda env (release)", "compile cuda kernel (release)"],
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-std=c++17",
+        "-Wall",
+        "-O2",
+        "main.cpp",
+        "Helper/OcTree/OcTree.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Voxelizer/Voxelizer.cpp",
+        "Voxelizer/OpenCL/OclEnv.cpp",
+        "Voxelizer/DirectX/DirectxEnv.cpp",
+        "Voxelizer/Vulkan/VulkanEnv.cpp",
+        "Voxelizer/Cuda/CudaEnv.o",
+        "Voxelizer/Cuda/VoxelizerKernel.o",
+        "-I/usr/local/cuda/include",
+        "-o",
+        "voxelizer",
+        "-lOpenCL",
+        "-lvulkan",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
+    }
+  ]
+}
