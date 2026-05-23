@@ -19,7 +19,7 @@
 #define PARALLEL_DIRECTX 4 // Windows-only, Vendor-neutral, GPU-only
 
 #ifndef VOXELIZE_MODE
-#define VOXELIZE_MODE PARALLEL_OPENCL
+#define VOXELIZE_MODE PARALLEL_CUDA
 #endif
 
 // #ifdef VOXELIZE_MODE
