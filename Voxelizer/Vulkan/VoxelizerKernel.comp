@@ -1,0 +1,294 @@
+#version 450
+
+// Compute shader ported from the OpenCL kernel used by the project.
+// Descriptor bindings:
+// 0: faces (int array, 3 per face)
+// 1: vertices (int array, 3 per vertex)
+// 2: voxels (uint bitset array; each bit represents one voxel)
+// 3: total (single uint counter)
+
+layout(local_size_x = 64) in;
+
+const int MAX_ARRAY_SIZE = 1024;
+
+layout(std430, binding = 0) buffer Faces {
+    int data[];
+} facesBuf;
+
+layout(std430, binding = 1) buffer Vertices {
+    int data[];
+} vertsBuf;
+
+layout(std430, binding = 2) buffer Voxels {
+    uint data[];
+} voxelsBuf;
+
+layout(std430, binding = 3) buffer Total {
+    uint total;
+} totalBuf;
+
+layout(push_constant) uniform PushConstants {
+    int numFaces;
+    int R; // width
+    int C; // height
+    int D; // depth
+    int xmin;
+    int ymin;
+    int zmin;
+} pc;
+
+// Helper: set voxel
+void setVoxel(int voxelIndex) {
+    uint word = uint(voxelIndex) >> 5u;
+    uint bit = uint(voxelIndex) & 31u;
+    atomicOr(voxelsBuf.data[word], 1u << bit);
+}
+
+// Helper: integer-based Bresenham-like digital straight segment routines
+void getPixelDSS2D(ivec2 p1, ivec2 p2, ivec2 val, ivec3 flag, out ivec2 points[MAX_ARRAY_SIZE], out int numPoints) {
+    int p = (p2.y - p1.y);
+    int q = (p1.x - p2.x);
+    if (flag.z == 0) { int t = p1.x; p1.x = p2.x; p2.x = t; }
+    if (flag.z == 1) { int t = p1.y; p1.y = p2.y; p2.y = t; }
+    if (flag.z == 2) { int tx = p1.x; int ty = p1.y; p1.x = p2.x; p1.y = p2.y; p2.x = tx; p2.y = ty; }
+    numPoints = abs(p2.x - p1.x) + 1;
+    int f = 2 * p + q;
+    int d = 2 * p;
+    int dd = 2 * (p + q);
+    int i = 0;
+    while (p1.x <= p2.x && i < MAX_ARRAY_SIZE) {
+        if (flag.y == 0) {
+            points[i] = p1;
+        } else {
+            points[i] = ivec2(p1.y, p1.x);
+        }
+        if (f <= 0) {
+            if (flag.x == 0) f += d;
+            else {
+                f += dd;
+                p1.y += val.y;
+            }
+        } else {
+            if (flag.x == 0) {
+                f += dd;
+                p1.y += val.y;
+            } else f += d;
+        }
+        p1.x += val.x;
+        i++;
+    }
+}
+
+void DSS2D(ivec2 p1, ivec2 p2, out ivec2 points[MAX_ARRAY_SIZE], out int numPoints) {
+    int q = abs(p2.x - p1.x);
+    int p = abs(p2.y - p1.y);
+    ivec2 _p1; ivec2 _p2;
+    ivec2 val;
+    ivec3 flags;
+    if (p <= q) {
+        bool flag = false;
+        if (p1.x < p2.x && p1.y < p2.y) { _p1 = p1; _p2 = p2; flag = true; }
+        else if (p1.x > p2.x && p1.y > p2.y) { _p1 = p2; _p2 = p1; flag = true; }
+        if(flag) {
+            val = ivec2(1,1);
+            flags = ivec3(0,0,-1);
+        }
+    }
+    if (p > q) {
+        bool flag = false;
+        if (p1.y < p2.y && p1.x <= p2.x) { _p1 = ivec2(p2.y, p2.x); _p2 = ivec2(p1.y, p1.x); flag = true; }
+        else if (p1.y > p2.y && p1.x >= p2.x) { _p1 = ivec2(p1.y, p1.x); _p2 = ivec2(p2.y, p2.x); flag = true; }
+        if(flag) {
+            val = ivec2(1,1);
+            flags = ivec3(1,1,2);
+        }
+    }
+    if (p >= q) {
+        bool flag = false;
+        if (p1.y < p2.y && p1.x > p2.x) { _p1 = ivec2(p1.y, p2.x); _p2 = ivec2(p2.y, p1.x); flag = true; }
+        else if (p1.y > p2.y && p1.x < p2.x) { _p1 = ivec2(p2.y, p1.x); _p2 = ivec2(p1.y, p2.x); flag = true; }
+        if(flag) {
+            val = ivec2(1,-1);
+            flags = ivec3(0,1,1);
+        }
+    }
+    if (p < q) {
+        bool flag = false;
+        if (p1.x > p2.x && p1.y <= p2.y) { _p1 = ivec2(p1.x, p2.y); _p2 = ivec2(p2.x, p1.y); flag = true; }
+        else if (p1.x < p2.x && p1.y >= p2.y) { _p1 = ivec2(p2.x, p1.y); _p2 = ivec2(p1.x, p2.y); flag = true; }
+        if(flag) {
+            val = ivec2(1,-1);
+            flags = ivec3(1,0,0);
+        }
+    }
+    getPixelDSS2D(_p1, _p2, val, flags, points, numPoints);
+}
+
+void DSS3D(ivec3 p1, ivec3 p2) {
+    ivec3 absPoint = ivec3(abs(p2.x - p1.x), abs(p2.y - p1.y), abs(p2.z - p1.z));
+    int maxv = max(max(absPoint.x, absPoint.y), absPoint.z);
+    if (maxv == 0) {
+        int x = p1.x - pc.xmin;
+        int y = p1.y - pc.ymin;
+        int z = p1.z - pc.zmin;
+        if (x >= 0 && x < pc.R && y >= 0 && y < pc.C && z >= 0 && z < pc.D) {
+            setVoxel(x + y * pc.R + z * pc.R * pc.C);
+        }
+        return;
+    }
+    ivec2 points[MAX_ARRAY_SIZE];
+    ivec3 coordinates[MAX_ARRAY_SIZE];
+    int numPoints;
+    ivec2 _p1, _p2;
+    if (maxv == absPoint.x) {
+        _p1 = ivec2(p1.x, p1.y);
+        _p2 = ivec2(p2.x, p2.y);
+        DSS2D(_p1, _p2, points, numPoints);
+        for (int i = 0; i < numPoints; ++i) { coordinates[i].x = points[i].x; coordinates[i].y = points[i].y; }
+        _p1 = ivec2(p1.x, p1.z);
+        _p2 = ivec2(p2.x, p2.z);
+        DSS2D(_p1, _p2, points, numPoints);
+        // assume sizes match
+        for (int i = 0; i < numPoints; ++i) coordinates[i].z = points[i].y;
+    } else if (maxv == absPoint.y) {
+        _p1 = ivec2(p1.x, p1.y);
+        _p2 = ivec2(p2.x, p2.y);
+        DSS2D(_p1, _p2, points, numPoints);
+        for (int i = 0; i < numPoints; ++i) { coordinates[i].x = points[i].x; coordinates[i].y = points[i].y; }
+        _p1 = ivec2(p1.y, p1.z);
+        _p2 = ivec2(p2.y, p2.z);
+        DSS2D(_p1, _p2, points, numPoints);
+        for (int i = 0; i < numPoints; ++i) coordinates[i].z = points[i].y;
+    } else {
+        _p1 = ivec2(p1.x, p1.z);
+        _p2 = ivec2(p2.x, p2.z);
+        DSS2D(_p1, _p2, points, numPoints);
+        for (int i = 0; i < numPoints; ++i) { coordinates[i].x = points[i].x; coordinates[i].z = points[i].y; }
+        _p1 = ivec2(p1.y, p1.z);
+        _p2 = ivec2(p2.y, p2.z);
+        DSS2D(_p1, _p2, points, numPoints);
+        for (int i = 0; i < numPoints; ++i) coordinates[i].y = points[i].x;
+    }
+    for (int i = 0; i < numPoints; ++i) {
+        int x = coordinates[i].x - pc.xmin;
+        int y = coordinates[i].y - pc.ymin;
+        int z = coordinates[i].z - pc.zmin;
+        if (x >= 0 && x < pc.R && y >= 0 && y < pc.C && z >= 0 && z < pc.D) {
+            setVoxel(x + y * pc.R + z * pc.R * pc.C);
+        }
+    }
+}
+
+void updateMinMax(ivec2 points[MAX_ARRAY_SIZE], int numPoints, ivec2 yBound, inout ivec2 minmax[MAX_ARRAY_SIZE]) {
+    for (int i = 0; i < numPoints; ++i) {
+        int temp = points[i].y - yBound.x;
+        if (temp >= 0 && temp <= yBound.y - yBound.x) {
+            if (minmax[temp].x > points[i].x) minmax[temp].x = points[i].x;
+            if (minmax[temp].y < points[i].x) minmax[temp].y = points[i].x;
+        }
+    }
+}
+
+// digitalTriangle2D and digitalTriangle3D helpers (simplified, using DSS routines)
+void digitalTriangle2D(ivec2 p1, ivec2 p2, ivec2 p3, ivec4 plane, int maximum, int axis) {
+    ivec2 yBound;
+    yBound.x = min(min(p1.y, p2.y), p3.y);
+    yBound.y = max(max(p1.y, p2.y), p3.y);
+
+    ivec2 minmax[MAX_ARRAY_SIZE];
+    for (int i = 0; i <= yBound.y - yBound.x; ++i) {
+        minmax[i].x = 2147483647;
+        minmax[i].y = -2147483648;
+    }
+
+    ivec2 points[MAX_ARRAY_SIZE];
+    int numPoints;
+
+    DSS2D(p1, p2, points, numPoints);
+    updateMinMax(points, numPoints, yBound, minmax);
+
+    DSS2D(p2, p3, points, numPoints);
+    updateMinMax(points, numPoints, yBound, minmax);
+
+    DSS2D(p1, p3, points, numPoints);
+    updateMinMax(points, numPoints, yBound, minmax);
+
+    for (int y = 0; y <= yBound.y - yBound.x; ++y) {
+        for (int x = minmax[y].x; x <= minmax[y].y; ++x) {
+            float z = (float(maximum) / 2.0 - float(plane.x) * float(x) - float(plane.y) * float(y + yBound.x) - float(plane.z)) / float(plane.w);
+            int zz = plane.w < 0 ? int(ceil(z)) : int(floor(z));
+            int i, j, k;
+            if (axis == 1) { i = zz; j = x; k = y + yBound.x; }
+            else if (axis == 2) { i = x; j = zz; k = y + yBound.x; }
+            else { i = x; j = y + yBound.x; k = zz; }
+            int voxelX = i - pc.xmin;
+            int voxelY = j - pc.ymin;
+            int voxelZ = k - pc.zmin;
+            if (voxelX >= 0 && voxelX < pc.R && voxelY >= 0 && voxelY < pc.C && voxelZ >= 0 && voxelZ < pc.D) {
+                setVoxel(voxelX + voxelY * pc.R + voxelZ * pc.R * pc.C);
+            }
+        }
+    }
+}
+
+void digitalTriangle3D(ivec3 p1, ivec3 p2, ivec3 p3) {
+    ivec3 p12 = ivec3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z);
+    ivec3 p13 = ivec3(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z);
+    ivec4 plane;
+    plane.x = p12.y * p13.z - p13.y * p12.z;
+    plane.y = p13.x * p12.z - p12.x * p13.z;
+    plane.z = p12.x * p13.y - p13.x * p12.y;
+    plane.w = -plane.x * p1.x - plane.y * p1.y - plane.z * p1.z;
+
+    if (plane.x == 0.0 && plane.y == 0.0 && plane.z == 0.0) {
+        // degenerate triangle: fallback to simple segment
+        if (p1.x > p2.x || p1.y > p2.y || p1.z > p2.z) {
+            ivec3 t = p1; p1 = p2; p2 = t;
+        }
+        if (p1.x > p3.x || p1.y > p3.y || p1.z > p3.z) {
+            ivec3 t = p1; p1 = p3; p3 = t;
+        }
+        if (p2.x > p3.x || p2.y > p3.y || p2.z > p3.z) {
+            ivec3 t = p2; p2 = p3; p3 = t;
+        }
+        DSS3D(p1, p3);
+        return;
+    }
+
+    int maxDim = int(max(max(abs(plane.x), abs(plane.y)), abs(plane.z)));
+    ivec2 _p1, _p2, _p3;
+    ivec4 _plane;
+    int axis;
+    if (maxDim == abs(int(plane.x))) {
+        _p1 = ivec2(p1.y, p1.z); _p2 = ivec2(p2.y, p2.z); _p3 = ivec2(p3.y, p3.z);
+        _plane = ivec4(plane.y, plane.z, plane.w, plane.x);
+        axis = 1;
+    } else if (maxDim == abs(int(plane.y))) {
+        _p1 = ivec2(p1.x, p1.z); _p2 = ivec2(p2.x, p2.z); _p3 = ivec2(p3.x, p3.z);
+        _plane = ivec4(plane.x, plane.z, plane.w, plane.y);
+        axis = 2;
+    } else {
+        _p1 = ivec2(p1.x, p1.y); _p2 = ivec2(p2.x, p2.y); _p3 = ivec2(p3.x, p3.y);
+        _plane = ivec4(plane.x, plane.y, plane.w, plane.z);
+        axis = 3;
+    }
+    digitalTriangle2D(_p1, _p2, _p3, _plane, maxDim, axis);
+}
+
+void main() {
+    uint gid = gl_GlobalInvocationID.x;
+    if (gid >= uint(pc.numFaces)) return;
+    atomicAdd(totalBuf.total, 1u);
+
+    int faceId = int(gid);
+    int v1 = facesBuf.data[faceId * 3 + 0];
+    int v2 = facesBuf.data[faceId * 3 + 1];
+    int v3 = facesBuf.data[faceId * 3 + 2];
+
+    ivec3 p1 = ivec3(vertsBuf.data[v1 * 3 + 0], vertsBuf.data[v1 * 3 + 1], vertsBuf.data[v1 * 3 + 2]);
+    ivec3 p2 = ivec3(vertsBuf.data[v2 * 3 + 0], vertsBuf.data[v2 * 3 + 1], vertsBuf.data[v2 * 3 + 2]);
+    ivec3 p3 = ivec3(vertsBuf.data[v3 * 3 + 0], vertsBuf.data[v3 * 3 + 1], vertsBuf.data[v3 * 3 + 2]);
+
+    // The OpenCL implementation assumes coordinates are already in integer/scaled space.
+    digitalTriangle3D(p1, p2, p3);
+}
