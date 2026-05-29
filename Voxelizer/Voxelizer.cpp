@@ -23,7 +23,6 @@
 int maxSize = INT_MIN;
 
 Voxelizer::Voxelizer(BBox3d bounds) : m_unscaledBounds(bounds) {
-    m_voxelCount = 0;
     m_ocTree = nullptr;
     m_baseEnv = nullptr;
 }
@@ -57,7 +56,7 @@ void Voxelizer::getVoxels(std::vector<Point3i>& voxels) const {
 
 int Voxelizer::getVoxelCount() const {
 #if VOXELIZE_MODE == SERIAL
-    return m_voxelCount;
+    return m_ocTree->getVoxelCount();
 #else
     return std::count(m_voxels.begin(), m_voxels.end(), 1);
 #endif
@@ -182,18 +181,7 @@ void Voxelizer::DSS3D(Point3i p1, Point3i p2) {
         maxSize = max;
     }
     if (max == 0) {
-        // int x = p1.x - m_scaledBounds.xmin;
-        // int y = p1.y - m_scaledBounds.ymin;
-        // int z = p1.z - m_scaledBounds.zmin;
-        // int voxelIndex = (z * m_dims.width * m_dims.height) + (y * m_dims.width) + x;
-        // if (/* voxelIndex >= 0 && voxelIndex < m_voxels.size() */)) {
-            if (/* m_voxels[voxelIndex] == 0 */ !m_ocTree->search(p1)) {
-                // m_voxels[voxelIndex] = 1;
-                if (m_ocTree->insert(p1)) {
-                    m_voxelCount++;
-                }
-            }
-        // }
+        m_ocTree->insert(p1);
         return;
     }
     std::vector<Point2i> points;
@@ -237,17 +225,7 @@ void Voxelizer::DSS3D(Point3i p1, Point3i p2) {
         for (int i = 0; i < size1; i++) coordinates[i].y = points[i].x;
     }
     for (int i = 0; i < coordinates.size(); i++) {
-        // int x = coordinates[i].x - m_scaledBounds.xmin;
-        // int y = coordinates[i].y - m_scaledBounds.ymin;
-        // int z = coordinates[i].z - m_scaledBounds.zmin;
-        // int voxelIndex = (z * m_dims.width * m_dims.height) + (y * m_dims.width) + x;
-        // if (voxelIndex >= 0 && voxelIndex < m_voxels.size()) {
-            if (/* m_voxels[voxelIndex] == 0 */ !m_ocTree->search(coordinates[i])) {
-                // m_voxels[voxelIndex] = 1;
-                if (m_ocTree->insert(coordinates[i]))
-                    m_voxelCount++;
-            }
-        // }
+        m_ocTree->insert(coordinates[i]);
     }
 }
 
@@ -299,19 +277,7 @@ void Voxelizer::digitalTriangle2D(Point2i p1, Point2i p2, Point2i p3, Plane plan
             if (axis == 1) { i = zz; j = x; k = y + yBound.x; }
             else if (axis == 2) { i = x; j = zz; k = y + yBound.x; }
             else { i = x; j = y + yBound.x; k = zz; }
-            // int voxelX = i - m_scaledBounds.xmin;
-            // int voxelY = j - m_scaledBounds.ymin;
-            // int voxelZ = k - m_scaledBounds.zmin;
-            // // std::cout << "voxelX = " << voxelX << ", voxelY = " << voxelY << ", voxelZ = " << voxelZ << std::endl;
-            // int voxelIndex = (voxelZ * m_dims.width * m_dims.height) + (voxelY * m_dims.width) + voxelX;
-            // if (voxelIndex >= 0 && voxelIndex < m_voxels.size()) {
-                if (/* m_voxels[voxelIndex] == 0 */ !m_ocTree->search(Point3i(i, j, k))) {
-                    // m_voxels[voxelIndex] = 1;
-                    if (m_ocTree->insert(Point3i(i, j, k))) {
-                        m_voxelCount++;
-                    }
-                }
-            // }
+            m_ocTree->insert(Point3i(i, j, k));
         }
     }
 }
@@ -372,16 +338,6 @@ void Voxelizer::digitalTriangle3D(Point3i p1, Point3i p2, Point3i p3) {
         _plane = {plane.a, plane.b, plane.d, plane.c};
         axis = 3;
     }
-    // if (p1.x == 0 && p1.y == 0 && p1.z == 20 && p2.x == 0 && p2.y == 10 && p2.z == 30 && p3.x == 0 && p3.y == 10 && p3.z == 20 ||
-    //     p1.x == 0 && p1.y == 0 && p1.z == 20 && p2.x == 0 && p2.y == 10 && p2.z == 20 && p3.x == 0 && p3.y == 10 && p3.z == 30 ||
-    //     p1.x == 0 && p1.y == 10 && p1.z == 30 && p2.x == 0 && p2.y == 0 && p2.z == 20 && p3.x == 0 && p3.y == 10 && p3.z == 20 ||
-    //     p1.x == 0 && p1.y == 10 && p1.z == 30 && p2.x == 0 && p2.y == 10 && p2.z == 20 && p3.x == 0 && p3.y == 0 && p3.z == 20 ||
-    //     p1.x == 0 && p1.y == 10 && p1.z == 20 && p2.x == 0 && p2.y == 0 && p2.z == 20 && p3.x == 0 && p3.y == 10 && p3.z == 30 ||
-    //     p1.x == 0 && p1.y == 10 && p1.z == 20 && p2.x == 0 && p2.y == 10 && p2.z == 30 && p3.x == 0 && p3.y == 0 && p3.z == 20)
-    // {
-    //     // printf("_p1 = (%d, %d), _p2 = (%d, %d), _p3 = (%d, %d)\n", _p1.x, _p1.y, _p2.x, _p2.y, _p3.x, _p3.y);
-    //     // digitalTriangle2D(_p1, _p2, _p3, _plane, maxDim, axis);
-    // }
     digitalTriangle2D(_p1, _p2, _p3, _plane, axis);
 }
 

@@ -27,9 +27,7 @@ __device__ void getPixelDSS2D(int2 p1, int2 p2, int2 val, int3 flag, int2* point
     if (flag.z == 2) {
         swap2(&p1, &p2);
     }
-    // printf("(x1, y1)=(%d %d), (x2, y2)=(%d %d)\n", p1.x, p1.y, p2.x, p2.y);
     *numPoints = abs(p2.x - p1.x) + 1;
-    // printf("numPoints = %d\n", *numPoints);
     int f = 2 * p + q;
     int d = 2 * p;
     int dd = 2 * (p + q);
@@ -41,7 +39,6 @@ __device__ void getPixelDSS2D(int2 p1, int2 p2, int2 val, int3 flag, int2* point
             points[i].x = p1.y;
             points[i].y = p1.x;
         }
-        // printf("(%d %d) ", points[i].x, points[i].y);
         if (f <= 0) {
             if (flag.x == 0) f += d;
             else {
@@ -57,14 +54,12 @@ __device__ void getPixelDSS2D(int2 p1, int2 p2, int2 val, int3 flag, int2* point
         p1.x += val.x;
         i++;
     }
-    // printf("\n\n");
 }
 
 __device__ void DSS2D(int2 p1, int2 p2, int2* points, int* numPoints) {
     int q = abs(p2.x - p1.x);
     int p = abs(p2.y - p1.y);
     int2 _p1, _p2;
-    // printf("p1=(%d %d), p2=(%d %d)\n", p1.x, p1.y, p2.x, p2.y);
     int2 val;
     int3 flags;
     if (p <= q) { // > 0 & <= 45 && > 180 & <= 225
@@ -103,7 +98,6 @@ __device__ void DSS2D(int2 p1, int2 p2, int2* points, int* numPoints) {
             flags = {1, 0, 0};
         }
     }
-    // printf("_p1=(%d %d), _p2=(%d %d)\n", _p1.x, _p1.y, _p2.x, _p2.y);
     getPixelDSS2D(_p1, _p2, val, flags, points, numPoints);
 }
 
@@ -218,7 +212,6 @@ __device__ void digitalTriangle2D(int2 p1, int2 p2, int2 p3, int4 plane, int max
             int voxelY = j - minBound.y;
             int voxelZ = k - minBound.z;
             if (voxelX >= 0 && voxelX < dim.x && voxelY >= 0 && voxelY < dim.y && voxelZ >= 0 && voxelZ < dim.z) {
-                // printf("voxelX=%d, voxelY=%d, voxelZ=%d\n", voxelX, voxelY, voxelZ);
                 int voxelIndex = voxelX + voxelY * dim.x + voxelZ * dim.x * dim.y;
                 voxels[voxelIndex] = 1;
             }
@@ -236,9 +229,8 @@ __device__ void digitalTriangle3D(int3 p1, int3 p2, int3 p3, unsigned char* voxe
     plane.z = p12.x * p13.y - p13.x * p12.y;
     plane.w = -plane.x * p1.x - plane.y * p1.y - plane.z * p1.z;
 
-    // degenerate triangle - simplified, just DSS3D but hard, skip for now
+    // degenerate triangle
     if (plane.x == 0 && plane.y == 0 && plane.z == 0) {
-        // handle degenerate triangles
         if (p1.x > p2.x || p1.y > p2.y || p1.z > p2.z) {
             swap3(&p1, &p2);
         }
@@ -269,16 +261,6 @@ __device__ void digitalTriangle3D(int3 p1, int3 p2, int3 p3, unsigned char* voxe
         _plane = {plane.x, plane.y, plane.w, plane.z};
         axis = 3;
     }
-    if (p1.x == 0 && p1.y == 0 && p1.z == 20 && p2.x == 0 && p2.y == 10 && p2.z == 30 && p3.x == 0 && p3.y == 10 && p3.z == 20 ||
-        p1.x == 0 && p1.y == 0 && p1.z == 20 && p2.x == 0 && p2.y == 10 && p2.z == 20 && p3.x == 0 && p3.y == 10 && p3.z == 30 ||
-        p1.x == 0 && p1.y == 10 && p1.z == 30 && p2.x == 0 && p2.y == 0 && p2.z == 20 && p3.x == 0 && p3.y == 10 && p3.z == 20 ||
-        p1.x == 0 && p1.y == 10 && p1.z == 30 && p2.x == 0 && p2.y == 10 && p2.z == 20 && p3.x == 0 && p3.y == 0 && p3.z == 20 ||
-        p1.x == 0 && p1.y == 10 && p1.z == 20 && p2.x == 0 && p2.y == 0 && p2.z == 20 && p3.x == 0 && p3.y == 10 && p3.z == 30 ||
-        p1.x == 0 && p1.y == 10 && p1.z == 20 && p2.x == 0 && p2.y == 10 && p2.z == 30 && p3.x == 0 && p3.y == 0 && p3.z == 20)
-    {
-        // printf("_p1 = (%d, %d), _p2 = (%d, %d), _p3 = (%d, %d)\n", _p1.x, _p1.y, _p2.x, _p2.y, _p3.x, _p3.y);
-        // digitalTriangle2D(_p1, _p2, _p3, _plane, maxDim, axis, voxels, dim, minBound);
-    }
     digitalTriangle2D(_p1, _p2, _p3, _plane, maxDim, axis, voxels, dim, minBound);
 }
 
@@ -288,7 +270,6 @@ __global__ void voxelizeFace(const unsigned int* faces, int numFaces,
                               unsigned int *totalSize) {
     int faceId = threadIdx.x + blockIdx.x * blockDim.x;
     if (faceId < 0 || faceId >= numFaces) return;
-    // printf("Face ID: %d\n", faceId);
     atomicAdd(totalSize, 1u);
 
     int v1 = faces[faceId * 3];
