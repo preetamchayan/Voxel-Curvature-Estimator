@@ -20,7 +20,6 @@ bool OcTree::search(Point3i p) {
 }
 
 bool OcTree::insert(Point3i p) {
-    m_voxelCount++;
     return traverse(p, INSERT);
 }
 
@@ -99,13 +98,15 @@ bool OcTree::traverse(Point3i p, unsigned char flag) {
 
         if (isVoxel(currentBounds)) { // Leaf node
             if(flag == INSERT) {
-                m_nodes[nodeIndex] = INT_MAX; // Mark as occupied
-                // m_voxelCount++;
+                if (m_nodes[nodeIndex] != INT_MAX) {
+                    m_nodes[nodeIndex] = INT_MAX;
+                    m_voxelCount++;
+                }
                 return true;
             }
             else if(flag == DELETE) {
                 m_nodes[nodeIndex] = -1; // Mark as empty
-                // m_voxelCount--;
+                m_voxelCount--;
                 return true;
             }
             else {
