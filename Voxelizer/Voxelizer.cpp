@@ -345,9 +345,12 @@ void Voxelizer::voxelize(const MeshLoader& mesh, float scale) {
     const auto& vertices = mesh.getVertices();
     const auto& faces = mesh.getFaces();
 
+    m_scaledBounds.xmax = INT_MIN; m_scaledBounds.xmin = INT_MAX;
+    m_scaledBounds.ymax = INT_MIN; m_scaledBounds.ymin = INT_MAX;
+    m_scaledBounds.zmax = INT_MIN; m_scaledBounds.zmin = INT_MAX;
+
     // Scale vertices and find bounds
     std::vector<Point3i> intVertices(vertices.size());
-    m_scaledBounds.xmax = INT_MIN, m_scaledBounds.xmin = INT_MAX, m_scaledBounds.ymax = INT_MIN, m_scaledBounds.ymin = INT_MAX, m_scaledBounds.zmax = INT_MIN, m_scaledBounds.zmin = INT_MAX;
     for (size_t i = 0; i < vertices.size(); ++i) {
         Point3f point3f;
         point3f.x = vertices[i].x * scale;
@@ -372,9 +375,9 @@ void Voxelizer::voxelize(const MeshLoader& mesh, float scale) {
     int C = m_scaledBounds.ymax - m_scaledBounds.ymin + 3;
     int D = m_scaledBounds.zmax - m_scaledBounds.zmin + 3;
 
-    m_dims.width = R;
+    m_dims.width  = R;
     m_dims.height = C;
-    m_dims.depth = D;
+    m_dims.depth  = D;
 
 #if VOXELIZE_MODE == SERIAL
     // Serial voxelization
@@ -398,7 +401,7 @@ void Voxelizer::voxelize(const MeshLoader& mesh, float scale) {
     #elif VOXELIZE_MODE == PARALLEL_DIRECTX
         m_baseEnv = new VoxelizerDirectxEnv();
     #else
-        #error "Invalid VOXELIZE_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, or PARALLEL_CUDA." 
+        #error "Invalid VOXELIZE_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, PARALLEL_CUDA  or PARALLEL_DIRECTX." 
     #endif
     if (m_baseEnv) {
         m_baseEnv->voxelize(m_voxels, intVertices, faces, m_scaledBounds, m_dims);
