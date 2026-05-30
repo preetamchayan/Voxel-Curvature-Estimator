@@ -1,9 +1,9 @@
-#include "OclEnv.h"
+#include "VoxelizerOclEnv.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 
-OclEnv::OclEnv() : m_context(nullptr), m_queue(nullptr) {
+VoxelizerOclEnv::VoxelizerOclEnv() : m_context(nullptr), m_queue(nullptr) {
     // Initialize OpenCL context, device, and other resources here
     std::cout << "Initializing OpenCL environment..." << std::endl;
 
@@ -57,7 +57,7 @@ OclEnv::OclEnv() : m_context(nullptr), m_queue(nullptr) {
     checkOpenCLError(err, "clCreateKernel");
 }
 
-OclEnv::~OclEnv()
+VoxelizerOclEnv::~VoxelizerOclEnv()
 {
     // Clean up OpenCL resources here
     std::cout << "Cleaning up OpenCL environment..." << std::endl;
@@ -91,7 +91,7 @@ OclEnv::~OclEnv()
     }
 }
 
-std::string OclEnv::loadKernelSource(const std::string &path)
+std::string VoxelizerOclEnv::loadKernelSource(const std::string &path)
 {
     std::ifstream file(path);
     if (!file.is_open())
@@ -104,7 +104,7 @@ std::string OclEnv::loadKernelSource(const std::string &path)
     return content.str();
 }
 
-void OclEnv::checkOpenCLError(cl_int error, const char *message)
+void VoxelizerOclEnv::checkOpenCLError(cl_int error, const char *message)
 {
     if (error != CL_SUCCESS)
     {
@@ -113,7 +113,7 @@ void OclEnv::checkOpenCLError(cl_int error, const char *message)
     }
 }
 
-void OclEnv::voxelize(
+void VoxelizerOclEnv::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,

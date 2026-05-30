@@ -2,15 +2,15 @@
 
 // Include only the selected parallel environment header to avoid optional dependency
 #if VOXELIZE_MODE == PARALLEL_OPENCL
-#include "OpenCL/OclEnv.h"
+#include "OpenCL/VoxelizerOclEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_VULKAN
-#include "Vulkan/VulkanEnv.h"
+#include "Vulkan/VoxelizerVulkanEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_CUDA
-#include "Cuda/CudaEnv.h"
+#include "Cuda/VoxelizerCudaEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_DIRECTX
-#include "DirectX/DirectxEnv.h"
+#include "DirectX/VoxelizerDirectxEnv.h"
 #else
-#include "OpenCL/OclEnv.h"
+#include "OpenCL/VoxelizerOclEnv.h"
 #endif
 #include <algorithm>
 #include <climits>
@@ -390,13 +390,13 @@ void Voxelizer::voxelize(const MeshLoader& mesh, float scale) {
 #else
     m_voxels.assign(R * C * D, 0);
     #if VOXELIZE_MODE == PARALLEL_OPENCL
-        m_baseEnv = new OclEnv();
+        m_baseEnv = new VoxelizerOclEnv();
     #elif VOXELIZE_MODE == PARALLEL_VULKAN
-        m_baseEnv = new VulkanEnv();
+        m_baseEnv = new VoxelizerVulkanEnv();
     #elif VOXELIZE_MODE == PARALLEL_CUDA
-        m_baseEnv = new CudaEnv();
+        m_baseEnv = new VoxelizerCudaEnv();
     #elif VOXELIZE_MODE == PARALLEL_DIRECTX
-        m_baseEnv = new DirectxEnv();
+        m_baseEnv = new VoxelizerDirectxEnv();
     #else
         #error "Invalid VOXELIZE_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, or PARALLEL_CUDA." 
     #endif
