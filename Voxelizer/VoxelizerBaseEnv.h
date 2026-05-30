@@ -4,9 +4,9 @@
 
 #include <vector>
 
-class BaseEnv {
+class VoxelizerBaseEnv {
 public:
-    virtual ~BaseEnv() = default;
+    virtual ~VoxelizerBaseEnv() = default;
     virtual void voxelize(std::vector<unsigned char> &voxels,
                           const std::vector<Point3i> &vertices,
                           const std::vector<Face> &faces,

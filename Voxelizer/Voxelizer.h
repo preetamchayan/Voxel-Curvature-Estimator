@@ -3,7 +3,7 @@
 #include "../Helper/GeometryTypes.h"
 #include "../Helper/MeshLoader/MeshLoader.h"
 #include "../Helper/OcTree/OcTree.h"
-#include "BaseEnv.h"
+#include "VoxelizerBaseEnv.h"
 #include <vector>
 #include <array>
 #include <cmath>
@@ -19,14 +19,8 @@
 #define PARALLEL_DIRECTX 4 // Windows-only, Vendor-neutral, GPU-only
 
 #ifndef VOXELIZE_MODE
-#define VOXELIZE_MODE PARALLEL_CUDA
+#define VOXELIZE_MODE SERIAL
 #endif
-
-// #ifdef VOXELIZE_MODE
-// #if VOXELIZE_MODE == PARALLEL_OPENCL
-// #include <CL/cl.h>
-// #endif
-// #endif
 
 class Voxelizer {
 private:
@@ -35,7 +29,7 @@ private:
     BBox3d m_unscaledBounds;
     Dimensions3i m_dims;
     OcTree* m_ocTree;
-    BaseEnv* m_baseEnv;
+    VoxelizerBaseEnv* m_baseEnv;
     int m_voxelCount;
 
     // Private helper functions for serial mode
