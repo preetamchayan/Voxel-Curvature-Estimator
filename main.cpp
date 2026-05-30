@@ -1,5 +1,6 @@
 #include "Helper/MeshLoader/MeshLoader.h"
 #include "Voxelizer/Voxelizer.h"
+#include "CurvatureEstimator/CurvatureEstimator.h"
 #include "Helper/OcTree/OcTree.h"
 #include <iostream>
 #include <string>
@@ -47,5 +48,9 @@ int main(int argc, char* argv[]) {
 
     // Export to OBJ
     voxelizer.exportVoxelsOBJ(outputFile);
+
+    //Estimate curvature
+    // CurvatureEstimator curvatureEstimator(voxelizer.getVoxels(), voxelizer.getSceneBounds());
+
     return 0;
 }

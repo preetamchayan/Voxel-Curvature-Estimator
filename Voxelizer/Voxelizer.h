@@ -9,8 +9,8 @@
 #include <cmath>
 #include <limits>
 
-// OS-neutral     -- Windows/Linux
-// Vendor-neutral -- NVIDIA/AMD/Intel/Qualcomm
+// OS-neutral     -- Windows / Linux (NOT MacOS due to OpenCL / Vulkan / CUDA support issues)
+// Vendor-neutral -- NVIDIA / AMD / Intel / Adreno (Qualcomm) / Mali (ARM) (NOT Apple Silicon due to lack of OpenCL / Vulkan / CUDA support)
 // Device-neutral -- CPU, GPU, embedded devices
 #define SERIAL 0
 #define PARALLEL_OPENCL 1  // OS-neutral,   Vendor-neutral, Device-neutral
@@ -19,7 +19,7 @@
 #define PARALLEL_DIRECTX 4 // Windows-only, Vendor-neutral, GPU-only
 
 #ifndef VOXELIZE_MODE
-#define VOXELIZE_MODE SERIAL
+#define VOXELIZE_MODE PARALLEL_CUDA
 #endif
 
 class Voxelizer {

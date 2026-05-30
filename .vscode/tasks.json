@@ -7,7 +7,7 @@
       "type": "shell",
       "command": "g++",
       "args": [
-        "-std=c++17",
+        "-std=c++20",
         "-Wall",
         "-O0",
         "-g",
@@ -18,6 +18,10 @@
         "Voxelizer/OpenCL/VoxelizerOclEnv.cpp",
         "Voxelizer/DirectX/VoxelizerDirectxEnv.cpp",
         "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
+        "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
+        "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
         "-o",
         "voxelizer",
         "-lOpenCL",
@@ -49,7 +53,7 @@
       "type": "shell",
       "command": "g++",
       "args": [
-        "-std=c++17",
+        "-std=c++20",
         "-Wall",
         "-O2",
         "main.cpp",
@@ -59,6 +63,10 @@
         "Voxelizer/OpenCL/VoxelizerOclEnv.cpp",
         "Voxelizer/DirectX/VoxelizerDirectxEnv.cpp",
         "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
+        "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
+        "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
         "-o",
         "voxelizer",
         "-lOpenCL",
@@ -72,7 +80,7 @@
     },
 
     {
-      "label": "compile cuda env (debug)",
+      "label": "compile voxelizer cuda env (debug)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -81,16 +89,34 @@
         "-O0",
         "-g",
         "-c",
-        "Voxelizer/Cuda/CudaEnv.cu",
+        "Voxelizer/Cuda/VoxelizerCudaEnv.cu",
         "-o",
-        "Voxelizer/Cuda/CudaEnv.o",
+        "Voxelizer/Cuda/VoxelizerCudaEnv.o",
         "-I/usr/local/cuda/include"
       ],
       "problemMatcher": []
     },
 
     {
-      "label": "compile cuda kernel (debug)",
+      "label": "compile curvature estimator cuda env (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
+        "-o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile voxelizer cuda kernel (debug)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -108,12 +134,35 @@
     },
 
     {
+      "label": "compile curvature estimator cuda kernel (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
+        "-o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
       "label": "build (debug - cuda)",
-      "dependsOn": ["compile cuda env (debug)", "compile cuda kernel (debug)"],
+      "dependsOn": [
+        "compile voxelizer cuda env (debug)",
+        "compile curvture estimator cuda kernel (debug)",
+        "compile voxelizer cuda kernel (debug)",
+        "compile curvature estimator cuda env (debug)"
+      ],
       "type": "shell",
       "command": "g++",
       "args": [
-        "-std=c++17",
+        "-std=c++20",
         "-Wall",
         "-O0",
         "-g",
@@ -126,6 +175,8 @@
         "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
         "Voxelizer/Cuda/VoxelizerCudaEnv.o",
         "Voxelizer/Cuda/VoxelizerKernel.o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
         "-I/usr/local/cuda/include",
         "-o",
         "voxelizer",
@@ -142,7 +193,7 @@
     },
 
     {
-      "label": "compile cuda env (release)",
+      "label": "compile voxelizer cuda env (release)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -159,7 +210,24 @@
     },
 
     {
-      "label": "compile cuda kernel (release)",
+      "label": "compile curvature estimator cuda env (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
+        "-o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile voxelizer cuda kernel (release)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -176,12 +244,34 @@
     },
 
     {
+      "label": "compile curvature estimator cuda kernel (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
+        "-o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
       "label": "build (release - cuda)",
-      "dependsOn": ["compile cuda env (release)", "compile cuda kernel (release)"],
+      "dependsOn": [
+        "compile voxelizer cuda env (release)",
+        "compile curvature estimator cuda kernel (release)",
+        "compile voxelizer cuda kernel (release)",
+        "compile curvature estimator cuda env (release)"
+      ],
       "type": "shell",
       "command": "g++",
       "args": [
-        "-std=c++17",
+        "-std=c++20",
         "-Wall",
         "-O2",
         "main.cpp",
@@ -193,6 +283,8 @@
         "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
         "Voxelizer/Cuda/VoxelizerCudaEnv.o",
         "Voxelizer/Cuda/VoxelizerKernel.o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
         "-I/usr/local/cuda/include",
         "-o",
         "voxelizer",
