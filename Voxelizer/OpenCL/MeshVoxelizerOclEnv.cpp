@@ -1,9 +1,9 @@
-#include "VoxelizerOclEnv.h"
+#include "MeshVoxelizerOclEnv.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 
-VoxelizerOclEnv::VoxelizerOclEnv() : m_context(nullptr), m_queue(nullptr) {
+MeshVoxelizerOclEnv::MeshVoxelizerOclEnv() : m_context(nullptr), m_queue(nullptr) {
     // Initialize OpenCL context, device, and other resources here
     std::cout << "Initializing OpenCL environment..." << std::endl;
 
@@ -37,12 +37,13 @@ VoxelizerOclEnv::VoxelizerOclEnv() : m_context(nullptr), m_queue(nullptr) {
 
     // Placeholder for running OpenCL kernels
     // In a real implementation, you would set up buffers, compile kernels, and execute them here.
-    std::string kernelSource = loadKernelSource("Voxelizer/OpenCL/VoxelizerKernel.cl");
+    std::string kernelSource = loadKernelSource("Voxelizer/OpenCL/MeshVoxelizerKernel.cl");
     const char *sourceStr = kernelSource.c_str();
     size_t sourceSize = kernelSource.size();
     m_program = clCreateProgramWithSource(m_context, 1, &sourceStr, &sourceSize, &err);
+    const char* options = "-I Voxelizer/OpenCL/";
     checkOpenCLError(err, "clCreateProgramWithSource");
-    err = clBuildProgram(m_program, 1, &m_device, nullptr, nullptr, nullptr);
+    err = clBuildProgram(m_program, 1, &m_device, options, nullptr, nullptr);
     if (err != CL_SUCCESS)
     {
         size_t logSize;
@@ -57,7 +58,7 @@ VoxelizerOclEnv::VoxelizerOclEnv() : m_context(nullptr), m_queue(nullptr) {
     checkOpenCLError(err, "clCreateKernel");
 }
 
-VoxelizerOclEnv::~VoxelizerOclEnv()
+MeshVoxelizerOclEnv::~MeshVoxelizerOclEnv()
 {
     // Clean up OpenCL resources here
     std::cout << "Cleaning up OpenCL environment..." << std::endl;
@@ -91,7 +92,7 @@ VoxelizerOclEnv::~VoxelizerOclEnv()
     }
 }
 
-std::string VoxelizerOclEnv::loadKernelSource(const std::string &path)
+std::string MeshVoxelizerOclEnv::loadKernelSource(const std::string &path)
 {
     std::ifstream file(path);
     if (!file.is_open())
@@ -104,7 +105,7 @@ std::string VoxelizerOclEnv::loadKernelSource(const std::string &path)
     return content.str();
 }
 
-void VoxelizerOclEnv::checkOpenCLError(cl_int error, const char *message)
+void MeshVoxelizerOclEnv::checkOpenCLError(cl_int error, const char *message)
 {
     if (error != CL_SUCCESS)
     {
@@ -113,7 +114,7 @@ void VoxelizerOclEnv::checkOpenCLError(cl_int error, const char *message)
     }
 }
 
-void VoxelizerOclEnv::voxelize(
+void MeshVoxelizerOclEnv::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,

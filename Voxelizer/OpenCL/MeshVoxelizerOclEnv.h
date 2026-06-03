@@ -5,12 +5,12 @@
 #include <string>
 
 // #include "../../Helper/GeometryTypes.h"
-#include "../VoxelizerBaseEnv.h"
+#include "../MeshVoxelizerBaseEnv.h"
 
-class VoxelizerOclEnv : public VoxelizerBaseEnv {
+class MeshVoxelizerOclEnv : public MeshVoxelizerBaseEnv {
 public:
-    VoxelizerOclEnv();
-    ~VoxelizerOclEnv();
+    MeshVoxelizerOclEnv();
+    ~MeshVoxelizerOclEnv();
     void voxelize(
         std::vector<unsigned char> &voxels,
         const std::vector<Point3i> &vertices,

@@ -1,0 +1,104 @@
+void updateMinMax(ivec2 points[MAX_ARRAY_SIZE], int numPoints, ivec2 yBound, inout ivec2 minmax[MAX_ARRAY_SIZE]) {
+    for (int i = 0; i < numPoints; ++i) {
+        int temp = points[i].y - yBound.x;
+        if (temp >= 0 && temp <= yBound.y - yBound.x) {
+            if (minmax[temp].x > points[i].x) minmax[temp].x = points[i].x;
+            if (minmax[temp].y < points[i].x) minmax[temp].y = points[i].x;
+        }
+    }
+}
+
+void computeTriEdgePixels(ivec2 p1, ivec2 p2, ivec2 p3, inout ivec2 minmax[MAX_ARRAY_SIZE]) {
+    ivec2 yBound;
+    yBound.x = min(min(p1.y, p2.y), p3.y);
+    yBound.y = max(max(p1.y, p2.y), p3.y);
+
+    // ivec2 minmax[MAX_ARRAY_SIZE];
+    for (int i = 0; i <= yBound.y - yBound.x; ++i) {
+        minmax[i].x = 2147483647;
+        minmax[i].y = -2147483648;
+    }
+
+    ivec2 points[MAX_ARRAY_SIZE];
+    int numPoints;
+
+    rasterizeDSS(p1, p2, points, numPoints);
+    updateMinMax(points, numPoints, yBound, minmax);
+
+    rasterizeDSS(p2, p3, points, numPoints);
+    updateMinMax(points, numPoints, yBound, minmax);
+
+    rasterizeDSS(p1, p3, points, numPoints);
+    updateMinMax(points, numPoints, yBound, minmax);
+}
+
+void voxelizeTriangle(ivec3 p1, ivec3 p2, ivec3 p3) {
+    ivec3 p12 = ivec3(p2.x - p1.x, p2.y - p1.y, p2.z - p1.z);
+    ivec3 p13 = ivec3(p3.x - p1.x, p3.y - p1.y, p3.z - p1.z);
+    ivec4 plane;
+    plane.x = p12.y * p13.z - p13.y * p12.z;
+    plane.y = p13.x * p12.z - p12.x * p13.z;
+    plane.z = p12.x * p13.y - p13.x * p12.y;
+    plane.w = -plane.x * p1.x - plane.y * p1.y - plane.z * p1.z;
+
+    if (plane.x == 0.0 && plane.y == 0.0 && plane.z == 0.0) {
+        // degenerate triangle: fallback to simple segment
+        if (p1.x > p2.x || p1.y > p2.y || p1.z > p2.z) {
+            ivec3 t = p1; p1 = p2; p2 = t;
+        }
+        if (p1.x > p3.x || p1.y > p3.y || p1.z > p3.z) {
+            ivec3 t = p1; p1 = p3; p3 = t;
+        }
+        if (p2.x > p3.x || p2.y > p3.y || p2.z > p3.z) {
+            ivec3 t = p2; p2 = p3; p3 = t;
+        }
+        voxelizeDSS(p1, p3);
+        return;
+    }
+
+    int maxDim = int(max(max(abs(plane.x), abs(plane.y)), abs(plane.z)));
+    ivec2 _p1, _p2, _p3;
+    ivec4 _plane;
+    int axis;
+    if (maxDim == abs(int(plane.x))) {
+        _p1 = ivec2(p1.y, p1.z); _p2 = ivec2(p2.y, p2.z); _p3 = ivec2(p3.y, p3.z);
+        _plane = ivec4(plane.y, plane.z, plane.w, plane.x);
+        axis = 1;
+    } else if (maxDim == abs(int(plane.y))) {
+        _p1 = ivec2(p1.x, p1.z); _p2 = ivec2(p2.x, p2.z); _p3 = ivec2(p3.x, p3.z);
+        _plane = ivec4(plane.x, plane.z, plane.w, plane.y);
+        axis = 2;
+    } else {
+        _p1 = ivec2(p1.x, p1.y); _p2 = ivec2(p2.x, p2.y); _p3 = ivec2(p3.x, p3.y);
+        _plane = ivec4(plane.x, plane.y, plane.w, plane.z);
+        axis = 3;
+    }
+
+    ivec2 boundaryPixels[MAX_ARRAY_SIZE];
+    computeTriEdgePixels(_p1, _p2, _p3, boundaryPixels);
+
+    ivec2 yBound;
+    yBound.x = min(min(_p1.y, _p2.y), _p3.y);
+    yBound.y = max(max(_p1.y, _p2.y), _p3.y);
+
+    for (int y = 0; y <= yBound.y - yBound.x; ++y) {
+        for (int x = boundaryPixels[y].x; x <= boundaryPixels[y].y; ++x) {
+            float z = float(maxDim) / 2.0;
+            z -= float(_plane.x) * float(x);
+            z -= float(_plane.y) * float(y + yBound.x);
+            z -= float(_plane.z);
+            z /= float(_plane.w);
+            int zz = _plane.w < 0 ? int(ceil(z)) : int(floor(z));
+            int i, j, k;
+            if (axis == 1) { i = zz; j = x; k = y + yBound.x; }
+            else if (axis == 2) { i = x; j = zz; k = y + yBound.x; }
+            else { i = x; j = y + yBound.x; k = zz; }
+            int voxelX = i - pc.xmin;
+            int voxelY = j - pc.ymin;
+            int voxelZ = k - pc.zmin;
+            if (voxelX >= 0 && voxelX < pc.R && voxelY >= 0 && voxelY < pc.C && voxelZ >= 0 && voxelZ < pc.D) {
+                setVoxel(voxelX + voxelY * pc.R + voxelZ * pc.R * pc.C);
+            }
+        }
+    }
+}

@@ -1,26 +1,26 @@
-#include "VoxelizerCudaEnv.h"
+#include "MeshVoxelizerCudaEnv.h"
 #include <iostream>
 
-#include "VoxelizerKernel.h"
+#include "MeshVoxelizerKernel.h"
 
-VoxelizerCudaEnv::VoxelizerCudaEnv() {
+MeshVoxelizerCudaEnv::MeshVoxelizerCudaEnv() {
     // Initialize Cuda context, device, and other resources here
     std::cout << "Initializing Cuda environment..." << std::endl;
 }
 
-VoxelizerCudaEnv::~VoxelizerCudaEnv() {
+MeshVoxelizerCudaEnv::~MeshVoxelizerCudaEnv() {
     // Clean up Cuda resources here
     std::cout << "Cleaning up Cuda environment..." << std::endl;
 }
 
-void VoxelizerCudaEnv::checkCudaError(cudaError_t error, const char* message) {
+void MeshVoxelizerCudaEnv::checkCudaError(cudaError_t error, const char* message) {
     if (error != cudaSuccess) {
         std::cerr << "Cuda error " << error << " at " << message << ": " << cudaGetErrorString(error) << std::endl;
         exit(1);
     }
 }
 
-void VoxelizerCudaEnv::init(
+void MeshVoxelizerCudaEnv::init(
     const std::vector<int>& flatFaces,
     const std::vector<int>& flatVertices,
     const std::vector<unsigned char>& voxels,
@@ -42,7 +42,7 @@ void VoxelizerCudaEnv::init(
     checkCudaError(cudaMemset((void*)m_totalSizeBuffer, 0, sizeof(unsigned int)), "Failed to initialize total size buffer");
 }
 
-void VoxelizerCudaEnv::voxelize(
+void MeshVoxelizerCudaEnv::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,

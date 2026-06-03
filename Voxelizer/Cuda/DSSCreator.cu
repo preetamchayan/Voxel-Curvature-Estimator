@@ -1,0 +1,160 @@
+#include "MeshVoxelizerKernel.h"
+
+#define SWAP_X(a,b) do { int _t = (a).x; (a).x = (b).x; (b).x = _t; } while(0)
+#define SWAP_Y(a,b) do { int _t = (a).y; (a).y = (b).y; (b).y = _t; } while(0)
+#define SWAP_Z(a,b) do { int _t = (a).z; (a).z = (b).z; (b).z = _t; } while(0)
+
+__device__ void swap2(int2* a, int2* b) {
+    int2 tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+__device__ void bresenhamLineDrawing(int2 p1, int2 p2, int2 val, int3 flag, int2* points, int *numPoints) {
+    int p = (p2.y - p1.y);
+    int q = (p1.x - p2.x);
+    if (flag.z == 0) SWAP_X(p1, p2);
+    if (flag.z == 1) SWAP_Y(p1, p2);
+    if (flag.z == 2) {
+        swap2(&p1, &p2);
+    }
+    *numPoints = abs(p2.x - p1.x) + 1;
+    int f = 2 * p + q;
+    int d = 2 * p;
+    int dd = 2 * (p + q);
+    int i = 0;
+    while (p1.x <= p2.x) {
+        if (flag.y == 0) {
+            points[i] = p1;
+        } else {
+            points[i].x = p1.y;
+            points[i].y = p1.x;
+        }
+        if (f <= 0) {
+            if (flag.x == 0) f += d;
+            else {
+                f += dd;
+                p1.y += val.y;
+            }
+        } else {
+            if (flag.x == 0) {
+                f += dd;
+                p1.y += val.y;
+            } else f += d;
+        }
+        p1.x += val.x;
+        i++;
+    }
+}
+
+__device__ void rasterizeDSS(int2 p1, int2 p2, int2* points, int* numPoints) {
+    int q = abs(p2.x - p1.x);
+    int p = abs(p2.y - p1.y);
+    int2 _p1, _p2;
+    int2 val;
+    int3 flags;
+    if (p <= q) { // > 0 & <= 45 && > 180 & <= 225
+        bool flag = false;
+        if (p1.x < p2.x && p1.y < p2.y) { _p1 = p1; _p2 = p2; flag = true; }
+        else if (p1.x > p2.x && p1.y > p2.y) { _p1 = p2; _p2 = p1; flag = true; }
+        if(flag) {
+            val = {1, 1};
+            flags = {0, 0, -1};
+        }
+    }
+    if (p > q) { // > 45 & <= 90 && > 225 & <= 270
+        bool flag = false;
+        if (p1.y < p2.y && p1.x <= p2.x) { _p1.x = p2.y; _p1.y = p2.x; _p2.x = p1.y; _p2.y = p1.x; flag = true; }
+        else if (p1.y > p2.y && p1.x >= p2.x) { _p1.x = p1.y; _p1.y = p1.x; _p2.x = p2.y; _p2.y = p2.x; flag = true; }
+        if(flag) {
+            val = {1, 1};
+            flags = {1, 1, 2};
+        }
+    }
+    if (p >= q) { // > 90 & <= 135 && > 270 & <= 315
+        bool flag = false;
+        if (p1.y < p2.y && p1.x > p2.x) { _p1.x = p1.y; _p1.y = p2.x; _p2.x = p2.y; _p2.y = p1.x; flag = true; }
+        else if (p1.y > p2.y && p1.x < p2.x) { _p1.x = p2.y; _p1.y = p1.x; _p2.x = p1.y; _p2.y = p2.x; flag = true; }
+        if(flag) {
+            val = {1, -1};
+            flags = {0, 1, 1};
+        }
+    }
+    if (p < q) { // > 135 & <= 180 && > 315 & <= 360
+        bool flag = false;
+        if (p1.x > p2.x && p1.y <= p2.y) { _p1.x = p1.x; _p1.y = p2.y; _p2.x = p2.x; _p2.y = p1.y; flag = true; }
+        else if (p1.x < p2.x && p1.y >= p2.y) { _p1.x = p2.x; _p1.y = p1.y; _p2.x = p1.x; _p2.y = p2.y; flag = true; }
+        if(flag) {
+            val = {1, -1};
+            flags = {1, 0, 0};
+        }
+    }
+    bresenhamLineDrawing(_p1, _p2, val, flags, points, numPoints);
+}
+
+__device__ void voxelizeDSS(int3 p1, int3 p2, int3 minBound, int3 dim, unsigned char* voxels) {
+    int3 absPoint;
+    absPoint.x = abs(p2.x - p1.x);
+    absPoint.y = abs(p2.y - p1.y);
+    absPoint.z = abs(p2.z - p1.z);
+    int maxDim = max(max(absPoint.x, absPoint.y), absPoint.z);
+    if (maxDim == 0) {
+        int x = p1.x - minBound.x;
+        int y = p1.y - minBound.y;
+        int z = p1.z - minBound.z;
+        if (x >= 0 && x < dim.x && y >= 0 && y < dim.y && z >= 0 && z < dim.z) {
+            int voxelIndex = z * dim.x * dim.y + y * dim.x + x;
+            voxels[voxelIndex] = 1;
+        }
+        return;
+    }
+    int3 coordinates[MAX_ARRAY_SIZE];
+    int2 points[MAX_ARRAY_SIZE];
+    int numPoints;
+    if (maxDim == absPoint.x) { // x coordinates with highest difference
+        int2 _p1 = {p1.x, p1.y};
+        int2 _p2 = {p2.x, p2.y};
+        rasterizeDSS(_p1, _p2, points, &numPoints);
+        for(int i = 0; i < numPoints; i++) {
+            coordinates[i].x = points[i].x;
+            coordinates[i].y = points[i].y;
+        }
+        _p1.x = p1.x; _p1.y = p1.z;
+        _p2.x = p2.x; _p2.y = p2.z;
+        rasterizeDSS(_p1, _p2, points, &numPoints);
+        for (int i = 0; i < numPoints; i++) coordinates[i].z = points[i].y;
+    } else if (maxDim == absPoint.y) { // y coordinates with highest difference
+        int2 _p1 = {p1.x, p1.y};
+        int2 _p2 = {p2.x, p2.y};
+        rasterizeDSS(_p1, _p2, points, &numPoints);
+        for(int i = 0; i < numPoints; i++) {
+            coordinates[i].x = points[i].x;
+            coordinates[i].y = points[i].y;
+        }
+        _p1.x = p1.y; _p1.y = p1.z;
+        _p2.x = p2.y; _p2.y = p2.z;
+        rasterizeDSS(_p1, _p2, points, &numPoints);
+        for (int i = 0; i < numPoints; i++) coordinates[i].z = points[i].y;
+    } else { // z coordinates with highest difference
+        int2 _p1 = {p1.x, p1.z};
+        int2 _p2 = {p2.x, p2.z};
+        rasterizeDSS(_p1, _p2, points, &numPoints);
+        for(int i = 0; i < numPoints; i++) {
+            coordinates[i].x = points[i].x;
+            coordinates[i].z = points[i].y;
+        }
+        _p1.x = p1.y; _p1.y = p1.z;
+        _p2.x = p2.y; _p2.y = p2.z;
+        rasterizeDSS(_p1, _p2, points, &numPoints);
+        for (int i = 0; i < numPoints; i++) coordinates[i].y = points[i].x;
+    }
+    for (int i = 0; i < numPoints; i++) {
+        int x = coordinates[i].x - minBound.x;
+        int y = coordinates[i].y - minBound.y;
+        int z = coordinates[i].z - minBound.z;
+        if (x >= 0 && x < dim.x && y >= 0 && y < dim.y && z >= 0 && z < dim.z) {
+            int voxelIndex = z * dim.x * dim.y + y * dim.x + x;
+            voxels[voxelIndex] = 1;
+        }
+    }
+}

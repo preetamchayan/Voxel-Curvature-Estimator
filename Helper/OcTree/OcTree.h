@@ -15,7 +15,7 @@ public:
     bool insert(Point3i p);
     bool remove(Point3i p);
     int getVoxelCount() const;
-    void getOccupiedVoxels(std::vector<Point3i>& occupiedVoxels) const;
+    void getVoxels(std::vector<Point3i>& occupiedVoxels) const;
 
 private:
     void build(const std::vector<unsigned char>& voxels);
