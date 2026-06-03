@@ -1,4 +1,4 @@
-#include "VoxelizerVulkanEnv.h"
+#include "MeshVoxelizerVulkanEnv.h"
 #include <iostream>
 #include <vector>
 #include <cstdlib>
@@ -13,7 +13,7 @@ static void checkVk(VkResult res, const char* msg) {
     }
 }
 
-VoxelizerVulkanEnv::VoxelizerVulkanEnv()
+MeshVoxelizerVulkanEnv::MeshVoxelizerVulkanEnv()
 {
     std::cout << "Initializing Vulkan environment..." << std::endl;
     createInstance();
@@ -22,13 +22,13 @@ VoxelizerVulkanEnv::VoxelizerVulkanEnv()
     createCommandPoolAndBuffer();
 }
 
-VoxelizerVulkanEnv::~VoxelizerVulkanEnv()
+MeshVoxelizerVulkanEnv::~MeshVoxelizerVulkanEnv()
 {
     std::cout << "Cleaning up Vulkan environment..." << std::endl;
     cleanup();
 }
 
-uint32_t VoxelizerVulkanEnv::findComputeQueueFamily(VkPhysicalDevice device)
+uint32_t MeshVoxelizerVulkanEnv::findComputeQueueFamily(VkPhysicalDevice device)
 {
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -45,7 +45,7 @@ uint32_t VoxelizerVulkanEnv::findComputeQueueFamily(VkPhysicalDevice device)
     return 0xFFFFFFFFu;
 }
 
-uint32_t VoxelizerVulkanEnv::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+uint32_t MeshVoxelizerVulkanEnv::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
@@ -60,7 +60,7 @@ uint32_t VoxelizerVulkanEnv::findMemoryType(uint32_t typeFilter, VkMemoryPropert
     std::exit(1);
 }
 
-void VoxelizerVulkanEnv::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory)
+void MeshVoxelizerVulkanEnv::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -82,7 +82,7 @@ void VoxelizerVulkanEnv::createBuffer(VkDeviceSize size, VkBufferUsageFlags usag
     checkVk(vkBindBufferMemory(m_device, buffer, bufferMemory, 0), "vkBindBufferMemory");
 }
 
-std::vector<char> VoxelizerVulkanEnv::readFile(const std::string &filename)
+std::vector<char> MeshVoxelizerVulkanEnv::readFile(const std::string &filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
@@ -98,7 +98,7 @@ std::vector<char> VoxelizerVulkanEnv::readFile(const std::string &filename)
     return buffer;
 }
 
-void VoxelizerVulkanEnv::createDescriptorSetLayout()
+void MeshVoxelizerVulkanEnv::createDescriptorSetLayout()
 {
     VkDescriptorSetLayoutBinding bindings[4];
     for (uint32_t i = 0; i < 4; ++i) {
@@ -132,7 +132,7 @@ void VoxelizerVulkanEnv::createDescriptorSetLayout()
     checkVk(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout), "vkCreatePipelineLayout");
 }
 
-void VoxelizerVulkanEnv::createDescriptorPoolAndSet()
+void MeshVoxelizerVulkanEnv::createDescriptorPoolAndSet()
 {
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -210,7 +210,7 @@ void VoxelizerVulkanEnv::createDescriptorPoolAndSet()
     vkUpdateDescriptorSets(m_device, 4, descriptorWrites, 0, nullptr);
 }
 
-void VoxelizerVulkanEnv::createComputePipeline(const std::string &spvPath)
+void MeshVoxelizerVulkanEnv::createComputePipeline(const std::string &spvPath)
 {
     auto code = readFile(spvPath);
     if (code.empty()) {
@@ -246,7 +246,7 @@ void VoxelizerVulkanEnv::createComputePipeline(const std::string &spvPath)
     vkDestroyShaderModule(m_device, shaderModule, nullptr);
 }
 
-void VoxelizerVulkanEnv::destroyBuffers()
+void MeshVoxelizerVulkanEnv::destroyBuffers()
 {
     if (m_facesBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(m_device, m_facesBuffer, nullptr);
@@ -282,7 +282,7 @@ void VoxelizerVulkanEnv::destroyBuffers()
     }
 }
 
-void VoxelizerVulkanEnv::createInstance()
+void MeshVoxelizerVulkanEnv::createInstance()
 {
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -300,7 +300,7 @@ void VoxelizerVulkanEnv::createInstance()
     checkVk(res, "vkCreateInstance");
 }
 
-void VoxelizerVulkanEnv::pickPhysicalDevice()
+void MeshVoxelizerVulkanEnv::pickPhysicalDevice()
 {
     uint32_t deviceCount = 0;
     checkVk(vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr), "vkEnumeratePhysicalDevices");
@@ -325,7 +325,7 @@ void VoxelizerVulkanEnv::pickPhysicalDevice()
     }
 }
 
-void VoxelizerVulkanEnv::createLogicalDevice()
+void MeshVoxelizerVulkanEnv::createLogicalDevice()
 {
     float priority = 1.0f;
     VkDeviceQueueCreateInfo queueCreateInfo{};
@@ -387,7 +387,7 @@ void VoxelizerVulkanEnv::createLogicalDevice()
     vkGetDeviceQueue(m_device, m_computeQueueFamilyIndex, 0, &m_computeQueue);
 }
 
-void VoxelizerVulkanEnv::createCommandPoolAndBuffer()
+void MeshVoxelizerVulkanEnv::createCommandPoolAndBuffer()
 {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -405,7 +405,7 @@ void VoxelizerVulkanEnv::createCommandPoolAndBuffer()
     checkVk(vkAllocateCommandBuffers(m_device, &allocInfo, &m_commandBuffer), "vkAllocateCommandBuffers");
 }
 
-void VoxelizerVulkanEnv::cleanup()
+void MeshVoxelizerVulkanEnv::cleanup()
 {
     if (m_device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(m_device);
@@ -445,7 +445,7 @@ void VoxelizerVulkanEnv::cleanup()
     }
 }
 
-void VoxelizerVulkanEnv::voxelize(
+void MeshVoxelizerVulkanEnv::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,
@@ -510,7 +510,7 @@ void VoxelizerVulkanEnv::voxelize(
 
     // NOTE: you must provide a compiled SPIR-V compute shader that implements the
     // `voxelize_faces` kernel. Place it at Voxelizer/Vulkan/VoxelizerKernel.spv
-    createComputePipeline("Voxelizer/Vulkan/VoxelizerKernel.spv");
+    createComputePipeline("Voxelizer/Vulkan/MeshVoxelizerKernel.spv");
 
     // Record compute dispatch
     VkCommandBufferBeginInfo beginInfo{};

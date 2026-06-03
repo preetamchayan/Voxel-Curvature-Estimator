@@ -24,7 +24,6 @@ bool OcTree::insert(Point3i p) {
 }
 
 bool OcTree::remove(Point3i p) {
-    m_voxelCount--;
     return traverse(p, DELETE);
 }
 
@@ -146,13 +145,13 @@ bool OcTree::traverse(Point3i p, unsigned char flag) {
     return true; // Found during search
 }
 
-void OcTree::getOccupiedVoxels(std::vector<Point3i>& occupiedVoxels) const {
+void OcTree::getVoxels(std::vector<Point3i>& voxels) const {
     struct NodeInfo {
         int index;
         BBox3i bounds;
     };
 
-    occupiedVoxels.clear();
+    voxels.clear();
 
     if(m_nodes[0] == -1) {
         return; // No occupied voxels
@@ -164,19 +163,21 @@ void OcTree::getOccupiedVoxels(std::vector<Point3i>& occupiedVoxels) const {
         NodeInfo current = stack.back();
         stack.pop_back();
 
-        int nodeValue = m_nodes[current.index];
+        assert(current.index < m_nodes.size());
 
-        if (nodeValue == INT_MAX) {
+        int nodeId = m_nodes[current.index];
+
+        if (nodeId == INT_MAX) {
             // Leaf node that is occupied, add to result
             assert(isVoxel(current.bounds));
-            occupiedVoxels.push_back({current.bounds.xmin, current.bounds.ymin, current.bounds.zmin});
+            voxels.push_back({current.bounds.xmin, current.bounds.ymin, current.bounds.zmin});
             continue;
         }
 
         Point3i mid = computeMid(current.bounds);
         // Internal node, add non-empty children to stack
         for (int i = 0; i < 8; i++) {
-            int childNodeId = nodeValue + i;
+            int childNodeId = nodeId + i;
             assert(childNodeId < m_nodes.size());
             if (childNodeId >= m_nodes.size() || m_nodes[childNodeId] == -1) {
                 continue; // Out of bounds check

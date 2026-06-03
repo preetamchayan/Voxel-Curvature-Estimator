@@ -7,7 +7,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/voxelizer",
       "args": [
-        "assets/botijo.obj",
+        "assets/armadillo.obj",
         "output/voxelized_debug.obj"
       ],
       "stopAtEntry": false,
@@ -32,7 +32,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/voxelizer",
       "args": [
-        "assets/botijo.obj",
+        "assets/armadillo.obj",
         "output/voxelized_release.obj"
       ],
       "stopAtEntry": false,
@@ -57,7 +57,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/voxelizer",
       "args": [
-        "assets/botijo.obj",
+        "assets/armadillo.obj",
         "output/voxelized_debug.obj"
       ],
       "stopAtEntry": false,
@@ -82,7 +82,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/voxelizer",
       "args": [
-        "assets/bunny.obj",
+        "assets/armadillo.obj",
         "output/voxelized_release.obj"
       ],
       "stopAtEntry": false,

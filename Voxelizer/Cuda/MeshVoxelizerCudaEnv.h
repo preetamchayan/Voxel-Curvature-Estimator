@@ -1,12 +1,12 @@
 #pragma once
 
-#include "../VoxelizerBaseEnv.h"
+#include "../MeshVoxelizerBaseEnv.h"
 #include <cuda_runtime.h>
 
-class VoxelizerCudaEnv : public VoxelizerBaseEnv {
+class MeshVoxelizerCudaEnv : public MeshVoxelizerBaseEnv {
 public:
-    VoxelizerCudaEnv();
-    ~VoxelizerCudaEnv();
+    MeshVoxelizerCudaEnv();
+    ~MeshVoxelizerCudaEnv();
     void voxelize(std::vector<unsigned char> &voxels,
                   const std::vector<Point3i> &vertices,
                   const std::vector<Face> &faces,

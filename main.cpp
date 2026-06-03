@@ -1,6 +1,6 @@
 #include "Helper/MeshLoader/MeshLoader.h"
-#include "Voxelizer/Voxelizer.h"
-#include "CurvatureEstimator/CurvatureEstimator.h"
+#include "Voxelizer/MeshVoxelizer.h"
+#include "CurvatureEstimator/CurvatureEstimatorBaseEnv.h"
 #include "Helper/OcTree/OcTree.h"
 #include <iostream>
 #include <string>
@@ -28,12 +28,11 @@ int main(int argc, char* argv[]) {
               << meshLoader.getFaces().size() << " faces." << std::endl;
 
     // Voxelize
-    Voxelizer voxelizer(meshLoader.getBounds());
+    MeshVoxelizer voxelizer(meshLoader.getBounds());
 
-    // Get recommended scale factor range
     int s_low, s_high;
     voxelizer.getRecommendedScaleRange(s_low, s_high);
-    std::cout << "Recommended scale factor range: " << s_low << " to " << s_high << std::endl;
+    std::cout << "Recommended scale range: [" << s_low << ", " << s_high << "]" << std::endl;
     
     float scale;
     std::cout << "Enter scale factor: ";

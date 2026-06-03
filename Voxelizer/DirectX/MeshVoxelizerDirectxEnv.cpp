@@ -1,17 +1,17 @@
-#include "VoxelizerDirectxEnv.h"
+#include "MeshVoxelizerDirectxEnv.h"
 #include <iostream>
 
-VoxelizerDirectxEnv::VoxelizerDirectxEnv() {
+MeshVoxelizerDirectxEnv::MeshVoxelizerDirectxEnv() {
     // Initialize Directx context, device, and other resources here
     std::cout << "Initializing DirectX environment..." << std::endl;
 }
 
-VoxelizerDirectxEnv::~VoxelizerDirectxEnv() {
+MeshVoxelizerDirectxEnv::~MeshVoxelizerDirectxEnv() {
     // Clean up Directx resources here
     std::cout << "Cleaning up DirectX environment..." << std::endl;
 }
 
-void VoxelizerDirectxEnv::voxelize(
+void MeshVoxelizerDirectxEnv::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,

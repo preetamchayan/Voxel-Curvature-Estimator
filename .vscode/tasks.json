@@ -14,14 +14,19 @@
         "main.cpp",
         "Helper/OcTree/OcTree.cpp",
         "Helper/MeshLoader/MeshLoader.cpp",
-        "Voxelizer/Voxelizer.cpp",
-        "Voxelizer/OpenCL/VoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/VoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
-        "CurvatureEstimator/CurvatureEstimator.cpp",
-        "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
-        "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
-        "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
+        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        // "CurvatureEstimator/CurvatureEstimator.cpp",
+        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
+        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
+        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
         "-o",
         "voxelizer",
         "-lOpenCL",
@@ -40,9 +45,9 @@
       "command": "glslangValidator",
       "args": [
         "-V",
-        "Voxelizer/Vulkan/VoxelizerKernel.comp",
+        "Voxelizer/Vulkan/MeshVoxelizerKernel.comp",
         "-o",
-        "Voxelizer/Vulkan/VoxelizerKernel.spv"
+        "Voxelizer/Vulkan/MeshVoxelizerKernel.spv"
       ],
       "problemMatcher": []
     },
@@ -59,14 +64,19 @@
         "main.cpp",
         "Helper/OcTree/OcTree.cpp",
         "Helper/MeshLoader/MeshLoader.cpp",
-        "Voxelizer/Voxelizer.cpp",
-        "Voxelizer/OpenCL/VoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/VoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
-        "CurvatureEstimator/CurvatureEstimator.cpp",
-        "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
-        "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
-        "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
+        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        // "CurvatureEstimator/CurvatureEstimator.cpp",
+        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
+        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
+        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
         "-o",
         "voxelizer",
         "-lOpenCL",
@@ -80,7 +90,7 @@
     },
 
     {
-      "label": "compile voxelizer cuda env (debug)",
+      "label": "compile mesh voxelizer cuda env (debug)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -88,17 +98,18 @@
         "g++",
         "-O0",
         "-g",
+        // "-rdc=true",
         "-c",
-        "Voxelizer/Cuda/VoxelizerCudaEnv.cu",
+        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.cu",
         "-o",
-        "Voxelizer/Cuda/VoxelizerCudaEnv.o",
+        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
         "-I/usr/local/cuda/include"
       ],
       "problemMatcher": []
     },
 
     {
-      "label": "compile curvature estimator cuda env (debug)",
+      "label": "compile mesh voxelizer cuda kernel (debug)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -106,77 +117,130 @@
         "g++",
         "-O0",
         "-g",
+        // "-rdc=true",
         "-c",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
+        "Voxelizer/Cuda/MeshVoxelizerKernel.cu",
         "-o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
         "-I/usr/local/cuda/include"
       ],
       "problemMatcher": []
     },
 
-    {
-      "label": "compile voxelizer cuda kernel (debug)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O0",
-        "-g",
-        "-c",
-        "Voxelizer/Cuda/VoxelizerKernel.cu",
-        "-o",
-        "Voxelizer/Cuda/VoxelizerKernel.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
+    // {
+    //   "label": "compile dss creator cuda kernel (debug)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O0",
+    //     "-g",
+    //     "-rdc=true",
+    //     "-dc",
+    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.cu",
+    //     "-o",
+    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
 
-    {
-      "label": "compile curvature estimator cuda kernel (debug)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O0",
-        "-g",
-        "-c",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
-        "-o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
+    // {
+    //   "label": "compile triangle voxelizer cuda kernel (debug)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O0",
+    //     "-g",
+    //     "-rdc=true",
+    //     "-dc",
+    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.cu",
+    //     "-o",
+    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
+
+    // {
+    //   "label": "compile curvature estimator cuda env (debug)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O0",
+    //     "-g",
+    //     "-c",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
+    //     "-o",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
+
+    // {
+    //   "label": "compile curvature estimator cuda kernel (debug)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O0",
+    //     "-g",
+    //     "-c",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
+    //     "-o",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
 
     {
       "label": "build (debug - cuda)",
       "dependsOn": [
-        "compile voxelizer cuda env (debug)",
-        "compile curvture estimator cuda kernel (debug)",
-        "compile voxelizer cuda kernel (debug)",
-        "compile curvature estimator cuda env (debug)"
+        "compile mesh voxelizer cuda env (debug)",
+        "compile mesh voxelizer cuda kernel (debug)",
+        "compile shader"
+        // "compile dss creator cuda kernel (debug)",
+        // "compile triangle voxelizer cuda kernel (debug)"
+        // "compile curvature estimator cuda env (debug)",
+        // "compile curvture estimator cuda kernel (debug)"
       ],
       "type": "shell",
-      "command": "g++",
+      "command": "nvcc",
       "args": [
         "-std=c++20",
-        "-Wall",
+        // "-Wall",
         "-O0",
         "-g",
         "main.cpp",
         "Helper/OcTree/OcTree.cpp",
         "Helper/MeshLoader/MeshLoader.cpp",
-        "Voxelizer/Voxelizer.cpp",
-        "Voxelizer/OpenCL/VoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/VoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
-        "Voxelizer/Cuda/VoxelizerCudaEnv.o",
-        "Voxelizer/Cuda/VoxelizerKernel.o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
+        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        // "CurvatureEstimator/CurvatureEstimator.cpp",
+        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
+        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
+        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
+        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
+        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
+        // "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
+        // "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
+        // "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        // "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
         "-I/usr/local/cuda/include",
         "-o",
         "voxelizer",
@@ -193,98 +257,150 @@
     },
 
     {
-      "label": "compile voxelizer cuda env (release)",
+      "label": "compile mesh voxelizer cuda env (release)",
       "type": "shell",
       "command": "nvcc",
       "args": [
         "-ccbin",
         "g++",
         "-O2",
+        // "-rdc=true",
         "-c",
-        "Voxelizer/Cuda/VoxelizerCudaEnv.cu",
+        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.cu",
         "-o",
-        "Voxelizer/Cuda/VoxelizerCudaEnv.o",
+        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
         "-I/usr/local/cuda/include"
       ],
       "problemMatcher": []
     },
 
     {
-      "label": "compile curvature estimator cuda env (release)",
+      "label": "compile mesh voxelizer cuda kernel (release)",
       "type": "shell",
       "command": "nvcc",
       "args": [
         "-ccbin",
         "g++",
         "-O2",
+        // "-rdc=true",
         "-c",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
+        "Voxelizer/Cuda/MeshVoxelizerKernel.cu",
         "-o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
         "-I/usr/local/cuda/include"
       ],
       "problemMatcher": []
     },
 
-    {
-      "label": "compile voxelizer cuda kernel (release)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O2",
-        "-c",
-        "Voxelizer/Cuda/VoxelizerKernel.cu",
-        "-o",
-        "Voxelizer/Cuda/VoxelizerKernel.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
+    // {
+    //   "label": "compile dss creator cuda kernel (release)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O2",
+    //     "-rdc=true",
+    //     "-dc",
+    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.cu",
+    //     "-o",
+    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
 
-    {
-      "label": "compile curvature estimator cuda kernel (release)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O2",
-        "-c",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
-        "-o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
+    // {
+    //   "label": "compile triangle voxelizer cuda kernel (release)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O2",
+    //     "-rdc=true",
+    //     "-dc",
+    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.cu",
+    //     "-o",
+    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
+
+    // {
+    //   "label": "compile curvature estimator cuda env (release)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O2",
+    //     "-c",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
+    //     "-o",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
+
+    // {
+    //   "label": "compile curvature estimator cuda kernel (release)",
+    //   "type": "shell",
+    //   "command": "nvcc",
+    //   "args": [
+    //     "-ccbin",
+    //     "g++",
+    //     "-O2",
+    //     "-c",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
+    //     "-o",
+    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
+    //     "-I/usr/local/cuda/include"
+    //   ],
+    //   "problemMatcher": []
+    // },
 
     {
       "label": "build (release - cuda)",
       "dependsOn": [
-        "compile voxelizer cuda env (release)",
-        "compile curvature estimator cuda kernel (release)",
-        "compile voxelizer cuda kernel (release)",
-        "compile curvature estimator cuda env (release)"
+        "compile mesh voxelizer cuda env (release)",
+        "compile mesh voxelizer cuda kernel (release)",
+        "compile shader"
+        // "compile dss creator cuda kernel (release)",
+        // "compile triangle voxelizer cuda kernel (release)"
+        // "compile curvature estimator cuda kernel (release)",
+        // "compile curvature estimator cuda env (release)"
       ],
       "type": "shell",
-      "command": "g++",
+      "command": "nvcc",
       "args": [
         "-std=c++20",
-        "-Wall",
+        // "-Wall",
         "-O2",
         "main.cpp",
         "Helper/OcTree/OcTree.cpp",
         "Helper/MeshLoader/MeshLoader.cpp",
-        "Voxelizer/Voxelizer.cpp",
-        "Voxelizer/OpenCL/VoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/VoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/VoxelizerVulkanEnv.cpp",
-        "Voxelizer/Cuda/VoxelizerCudaEnv.o",
-        "Voxelizer/Cuda/VoxelizerKernel.o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
-        "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
+        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        // "CurvatureEstimator/CurvatureEstimator.cpp",
+        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
+        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
+        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
+        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
+        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
+        // "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
+        // "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
+        // "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
+        // "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
         "-I/usr/local/cuda/include",
         "-o",
         "voxelizer",

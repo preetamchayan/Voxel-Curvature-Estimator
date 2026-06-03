@@ -1,12 +1,12 @@
 #pragma once
 
 // #include "../../Helper/GeometryTypes.h"
-#include "../VoxelizerBaseEnv.h"
+#include "../MeshVoxelizerBaseEnv.h"
 
-class VoxelizerDirectxEnv : public VoxelizerBaseEnv {
+class MeshVoxelizerDirectxEnv : public MeshVoxelizerBaseEnv {
 public:
-    VoxelizerDirectxEnv();
-    ~VoxelizerDirectxEnv();
+    MeshVoxelizerDirectxEnv();
+    ~MeshVoxelizerDirectxEnv();
     void voxelize(std::vector<unsigned char> &voxels,
                   const std::vector<Point3i> &vertices,
                   const std::vector<Face> &faces,
