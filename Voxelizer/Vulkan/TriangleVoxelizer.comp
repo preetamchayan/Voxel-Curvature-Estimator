@@ -22,13 +22,13 @@ void computeTriEdgePixels(ivec2 p1, ivec2 p2, ivec2 p3, inout ivec2 minmax[MAX_A
     ivec2 points[MAX_ARRAY_SIZE];
     int numPoints;
 
-    rasterizeDSS(p1, p2, points, numPoints);
+    rasterizeSegment(p1, p2, points, numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 
-    rasterizeDSS(p2, p3, points, numPoints);
+    rasterizeSegment(p2, p3, points, numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 
-    rasterizeDSS(p1, p3, points, numPoints);
+    rasterizeSegment(p1, p3, points, numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 }
 
@@ -52,7 +52,7 @@ void voxelizeTriangle(ivec3 p1, ivec3 p2, ivec3 p3) {
         if (p2.x > p3.x || p2.y > p3.y || p2.z > p3.z) {
             ivec3 t = p2; p2 = p3; p3 = t;
         }
-        voxelizeDSS(p1, p3);
+        voxelizeSegment(p1, p3);
         return;
     }
 

@@ -47,7 +47,7 @@ inline void bresenhamLineDrawing(int2 p1, int2 p2, int2 val, int3 flag, int2* po
     }
 }
 
-inline void rasterizeDSS(int2 p1, int2 p2, int2* points, int* numPoints) {
+inline void rasterizeSegment(int2 p1, int2 p2, int2* points, int* numPoints) {
     int q = abs(p2.x - p1.x);
     int p = abs(p2.y - p1.y);
     int2 _p1, _p2;
@@ -92,7 +92,7 @@ inline void rasterizeDSS(int2 p1, int2 p2, int2* points, int* numPoints) {
     bresenhamLineDrawing(_p1, _p2, val, flags, points, numPoints);
 }
 
-inline void voxelizeDSS(int3 p1, int3 p2, int3 minBound, int3 dim, __global uchar* voxels) {
+inline void voxelizeSegment(int3 p1, int3 p2, int3 minBound, int3 dim, __global uchar* voxels) {
     int3 absPoint;
     absPoint.x = abs(p2.x - p1.x);
     absPoint.y = abs(p2.y - p1.y);
@@ -114,38 +114,38 @@ inline void voxelizeDSS(int3 p1, int3 p2, int3 minBound, int3 dim, __global ucha
     if (maxDim == absPoint.x) { // x coordinates with highest difference
         int2 _p1 = p1.xy;
         int2 _p2 = p2.xy;
-        rasterizeDSS(_p1, _p2, points, &numPoints);
+        rasterizeSegment(_p1, _p2, points, &numPoints);
         for(int i = 0; i < numPoints; i++) {
             coordinates[i].x = points[i].x;
             coordinates[i].y = points[i].y;
         }
         _p1.xy = p1.xz;
         _p2.xy = p2.xz;
-        rasterizeDSS(_p1, _p2, points, &numPoints);
+        rasterizeSegment(_p1, _p2, points, &numPoints);
         for (int i = 0; i < numPoints; i++) coordinates[i].z = points[i].y;
     } else if (maxDim == absPoint.y) { // y coordinates with highest difference
         int2 _p1 = p1.xy;
         int2 _p2 = p2.xy;
-        rasterizeDSS(_p1, _p2, points, &numPoints);
+        rasterizeSegment(_p1, _p2, points, &numPoints);
         for(int i = 0; i < numPoints; i++) {
             coordinates[i].x = points[i].x;
             coordinates[i].y = points[i].y;
         }
         _p1.xy = p1.yz;
         _p2.xy = p2.yz;
-        rasterizeDSS(_p1, _p2, points, &numPoints);
+        rasterizeSegment(_p1, _p2, points, &numPoints);
         for (int i = 0; i < numPoints; i++) coordinates[i].z = points[i].y;
     } else { // z coordinates with highest difference
         int2 _p1 = p1.xz;
         int2 _p2 = p2.xz;
-        rasterizeDSS(_p1, _p2, points, &numPoints);
+        rasterizeSegment(_p1, _p2, points, &numPoints);
         for(int i = 0; i < numPoints; i++) {
             coordinates[i].x = points[i].x;
             coordinates[i].z = points[i].y;
         }
         _p1.xy = p1.yz;
         _p2.xy = p2.yz;
-        rasterizeDSS(_p1, _p2, points, &numPoints);
+        rasterizeSegment(_p1, _p2, points, &numPoints);
         for (int i = 0; i < numPoints; i++) coordinates[i].y = points[i].x;
     }
     for (int i = 0; i < numPoints; i++) {

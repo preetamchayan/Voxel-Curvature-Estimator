@@ -30,13 +30,13 @@ inline void computeTriEdgePixels(int2 p1, int2 p2, int2 p3, int2* minmax) {
     int2 points[MAX_ARRAY_SIZE]; // local array for points
     int numPoints;
 
-    rasterizeDSS(p1, p2, points, &numPoints);
+    rasterizeSegment(p1, p2, points, &numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 
-    rasterizeDSS(p2, p3, points, &numPoints);
+    rasterizeSegment(p2, p3, points, &numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 
-    rasterizeDSS(p1, p3, points, &numPoints);
+    rasterizeSegment(p1, p3, points, &numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 }
 
@@ -50,7 +50,7 @@ inline void voxelizeTriangle(int3 p1, int3 p2, int3 p3, __global uchar* voxels, 
     plane.z = p12.x * p13.y - p13.x * p12.y;
     plane.w = -plane.x * p1.x - plane.y * p1.y - plane.z * p1.z;
 
-    // degenerate triangle - simplified, just voxelizeDSS but hard, skip for now
+    // degenerate triangle - simplified, just voxelizeSegment but hard, skip for now
     if (plane.x == 0 && plane.y == 0 && plane.z == 0) {
         // handle degenerate triangles
         if (p1.x > p2.x || p1.y > p2.y || p1.z > p2.z) {
@@ -62,7 +62,7 @@ inline void voxelizeTriangle(int3 p1, int3 p2, int3 p3, __global uchar* voxels, 
         if (p2.x > p3.x || p2.y > p3.y || p2.z > p3.z) {
             swap3(&p2, &p3);
         }
-        voxelizeDSS(p1, p3, minBound, dim, voxels);
+        voxelizeSegment(p1, p3, minBound, dim, voxels);
         return;
     }
 

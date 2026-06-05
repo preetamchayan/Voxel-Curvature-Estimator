@@ -7,8 +7,8 @@
 
 class DSSCreator {
 public:
-    std::vector<Point2i> rasterizeDSS(Point2i point1, Point2i point2);
-    void voxelizeDSS(Point3i p1, Point3i p2, OcTree* ocTree);
+    std::vector<Point2i> rasterizeSegment(Point2i point1, Point2i point2);
+    void voxelizeSegment(Point3i p1, Point3i p2, OcTree* ocTree);
 
 private:
     std::vector<Point2i> bresenhamLineDrawing(Point2i point1, Point2i point2, Values values, Flags flags);

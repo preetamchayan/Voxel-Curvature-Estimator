@@ -4,7 +4,7 @@
 #include <cmath>
 #include <cassert>
 
-std::vector<Point2i> DSSCreator::rasterizeDSS(Point2i p1, Point2i p2) {
+std::vector<Point2i> DSSCreator::rasterizeSegment(Point2i p1, Point2i p2) {
     int q = std::abs(p2.x - p1.x);
     int p = std::abs(p2.y - p1.y);
     Point2i _p1, _p2;
@@ -50,13 +50,13 @@ std::vector<Point2i> DSSCreator::rasterizeDSS(Point2i p1, Point2i p2) {
     return bresenhamLineDrawing(_p1, _p2, values, flags);
 }
 
-void DSSCreator::voxelizeDSS(Point3i p1, Point3i p2, OcTree* ocTree) {
+void DSSCreator::voxelizeSegment(Point3i p1, Point3i p2, OcTree* ocTree) {
     Point3i absPoint;
     absPoint.x = std::abs(p2.x - p1.x);
     absPoint.y = std::abs(p2.y - p1.y);
     absPoint.z = std::abs(p2.z - p1.z);
     int max = std::max({absPoint.x, absPoint.y, absPoint.z});
-    // std::cout << "voxelizeDSS: max = " << max << std::endl;
+    // std::cout << "voxelizeSegment: max = " << max << std::endl;
     if (max == 0) {
         ocTree->insert(p1);
         return;
@@ -64,37 +64,37 @@ void DSSCreator::voxelizeDSS(Point3i p1, Point3i p2, OcTree* ocTree) {
     std::vector<Point3i> voxels;
     voxels.resize(max + 1);
     if (max == absPoint.x) { // x coordinates with highest difference
-        auto pixels = rasterizeDSS(Point2i{p1.x, p1.y}, Point2i{p2.x, p2.y});
+        auto pixels = rasterizeSegment(Point2i{p1.x, p1.y}, Point2i{p2.x, p2.y});
         for(int i = 0; i < pixels.size(); i++) {
             voxels[i].x = pixels[i].x;
             voxels[i].y = pixels[i].y;
         }
         int size1 = pixels.size();
-        pixels = rasterizeDSS(Point2i{p1.x, p1.z}, Point2i{p2.x, p2.z});
+        pixels = rasterizeSegment(Point2i{p1.x, p1.z}, Point2i{p2.x, p2.z});
         int size2 = pixels.size();
-        assert(size1 == size2 && "rasterizeDSS should return the same number of points for both projections");
+        assert(size1 == size2 && "rasterizeSegment should return the same number of points for both projections");
         for (int i = 0; i < size1; i++) voxels[i].z = pixels[i].y;
     } else if (max == absPoint.y) { // y coordinates with highest difference
-        auto pixels = rasterizeDSS(Point2i{p1.x, p1.y}, Point2i{p2.x, p2.y});
+        auto pixels = rasterizeSegment(Point2i{p1.x, p1.y}, Point2i{p2.x, p2.y});
         for(int i = 0; i < pixels.size(); i++) {
             voxels[i].x = pixels[i].x;
             voxels[i].y = pixels[i].y;
         }
         int size1 = pixels.size();
-        pixels = rasterizeDSS(Point2i{p1.y, p1.z}, Point2i{p2.y, p2.z});
+        pixels = rasterizeSegment(Point2i{p1.y, p1.z}, Point2i{p2.y, p2.z});
         int size2 = pixels.size();
-        assert(size1 == size2 && "rasterizeDSS should return the same number of points for both projections");
+        assert(size1 == size2 && "rasterizeSegment should return the same number of points for both projections");
         for (int i = 0; i < size1; i++) voxels[i].z = pixels[i].y;
     } else { // z coordinates with highest difference
-        auto pixels = rasterizeDSS(Point2i{p1.x, p1.z}, Point2i{p2.x, p2.z});
+        auto pixels = rasterizeSegment(Point2i{p1.x, p1.z}, Point2i{p2.x, p2.z});
         for(int i = 0; i < pixels.size(); i++) {
             voxels[i].x = pixels[i].x;
             voxels[i].z = pixels[i].y;
         }
         int size1 = pixels.size();
-        pixels = rasterizeDSS(Point2i{p1.y, p1.z}, Point2i{p2.y, p2.z});
+        pixels = rasterizeSegment(Point2i{p1.y, p1.z}, Point2i{p2.y, p2.z});
         int size2 = pixels.size();
-        assert(size1 == size2 && "rasterizeDSS should return the same number of points for both projections");
+        assert(size1 == size2 && "rasterizeSegment should return the same number of points for both projections");
         for (int i = 0; i < size1; i++) voxels[i].y = pixels[i].x;
     }
     for (const auto& voxel : voxels)
