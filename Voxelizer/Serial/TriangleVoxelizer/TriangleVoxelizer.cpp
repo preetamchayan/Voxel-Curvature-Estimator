@@ -39,7 +39,7 @@ void TriangleVoxelizer::voxelizeTriangle(Point3i p1, Point3i p2, Point3i p3, OcT
             swap(&p2.y, &p3.y);
             swap(&p2.z, &p3.z);
         }
-        m_dssCreator.voxelizeDSS(p1, p3, ocTree);
+        m_dssCreator.voxelizeSegment(p1, p3, ocTree);
     }
 
     // finding the projected plane with maximum area
@@ -104,11 +104,11 @@ std::vector<Point2i> TriangleVoxelizer::computeTriEdgePixels(Point2i p1, Point2i
         }
     };
 
-    auto points = m_dssCreator.rasterizeDSS(p1, p2);
+    auto points = m_dssCreator.rasterizeSegment(p1, p2);
     updateMaxMin(points);
-    points = m_dssCreator.rasterizeDSS(p2, p3);
+    points = m_dssCreator.rasterizeSegment(p2, p3);
     updateMaxMin(points);
-    points = m_dssCreator.rasterizeDSS(p1, p3);
+    points = m_dssCreator.rasterizeSegment(p1, p3);
     updateMaxMin(points);
 
     return boundaryPixels;

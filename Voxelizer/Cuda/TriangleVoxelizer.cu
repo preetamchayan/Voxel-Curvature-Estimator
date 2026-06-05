@@ -29,13 +29,13 @@ __device__ void computeTriEdgePixels(int2 p1, int2 p2, int2 p3, int2* minmax) {
     int2 points[MAX_ARRAY_SIZE]; // local array for points
     int numPoints;
 
-    rasterizeDSS(p1, p2, points, &numPoints);
+    rasterizeSegment(p1, p2, points, &numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 
-    rasterizeDSS(p2, p3, points, &numPoints);
+    rasterizeSegment(p2, p3, points, &numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 
-    rasterizeDSS(p1, p3, points, &numPoints);
+    rasterizeSegment(p1, p3, points, &numPoints);
     updateMinMax(points, numPoints, yBound, minmax);
 }
 
@@ -60,7 +60,7 @@ __device__ void voxelizeTriangle(int3 p1, int3 p2, int3 p3, unsigned char* voxel
         if (p2.x > p3.x || p2.y > p3.y || p2.z > p3.z) {
             swap3(&p2, &p3);
         }
-        voxelizeDSS(p1, p3, minBound, dim, voxels);
+        voxelizeSegment(p1, p3, minBound, dim, voxels);
         return;
     }
 

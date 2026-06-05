@@ -34,7 +34,7 @@ void bresenhamLineDrawing(ivec2 p1, ivec2 p2, ivec2 val, ivec3 flag, out ivec2 p
     }
 }
 
-void rasterizeDSS(ivec2 p1, ivec2 p2, out ivec2 points[MAX_ARRAY_SIZE], out int numPoints) {
+void rasterizeSegment(ivec2 p1, ivec2 p2, out ivec2 points[MAX_ARRAY_SIZE], out int numPoints) {
     int q = abs(p2.x - p1.x);
     int p = abs(p2.y - p1.y);
     ivec2 _p1; ivec2 _p2;
@@ -79,7 +79,7 @@ void rasterizeDSS(ivec2 p1, ivec2 p2, out ivec2 points[MAX_ARRAY_SIZE], out int 
     bresenhamLineDrawing(_p1, _p2, val, flags, points, numPoints);
 }
 
-void voxelizeDSS(ivec3 p1, ivec3 p2) {
+void voxelizeSegment(ivec3 p1, ivec3 p2) {
     ivec3 absPoint = ivec3(abs(p2.x - p1.x), abs(p2.y - p1.y), abs(p2.z - p1.z));
     int maxv = max(max(absPoint.x, absPoint.y), absPoint.z);
     if (maxv == 0) {
@@ -98,30 +98,30 @@ void voxelizeDSS(ivec3 p1, ivec3 p2) {
     if (maxv == absPoint.x) {
         _p1 = ivec2(p1.x, p1.y);
         _p2 = ivec2(p2.x, p2.y);
-        rasterizeDSS(_p1, _p2, points, numPoints);
+        rasterizeSegment(_p1, _p2, points, numPoints);
         for (int i = 0; i < numPoints; ++i) { coordinates[i].x = points[i].x; coordinates[i].y = points[i].y; }
         _p1 = ivec2(p1.x, p1.z);
         _p2 = ivec2(p2.x, p2.z);
-        rasterizeDSS(_p1, _p2, points, numPoints);
+        rasterizeSegment(_p1, _p2, points, numPoints);
         // assume sizes match
         for (int i = 0; i < numPoints; ++i) coordinates[i].z = points[i].y;
     } else if (maxv == absPoint.y) {
         _p1 = ivec2(p1.x, p1.y);
         _p2 = ivec2(p2.x, p2.y);
-        rasterizeDSS(_p1, _p2, points, numPoints);
+        rasterizeSegment(_p1, _p2, points, numPoints);
         for (int i = 0; i < numPoints; ++i) { coordinates[i].x = points[i].x; coordinates[i].y = points[i].y; }
         _p1 = ivec2(p1.y, p1.z);
         _p2 = ivec2(p2.y, p2.z);
-        rasterizeDSS(_p1, _p2, points, numPoints);
+        rasterizeSegment(_p1, _p2, points, numPoints);
         for (int i = 0; i < numPoints; ++i) coordinates[i].z = points[i].y;
     } else {
         _p1 = ivec2(p1.x, p1.z);
         _p2 = ivec2(p2.x, p2.z);
-        rasterizeDSS(_p1, _p2, points, numPoints);
+        rasterizeSegment(_p1, _p2, points, numPoints);
         for (int i = 0; i < numPoints; ++i) { coordinates[i].x = points[i].x; coordinates[i].z = points[i].y; }
         _p1 = ivec2(p1.y, p1.z);
         _p2 = ivec2(p2.y, p2.z);
-        rasterizeDSS(_p1, _p2, points, numPoints);
+        rasterizeSegment(_p1, _p2, points, numPoints);
         for (int i = 0; i < numPoints; ++i) coordinates[i].y = points[i].x;
     }
     for (int i = 0; i < numPoints; ++i) {
