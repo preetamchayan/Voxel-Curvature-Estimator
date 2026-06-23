@@ -27,6 +27,31 @@
     },
 
     {
+      "name": "Debug (lldb - macOS)",
+      "type": "lldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/voxelize",
+      "args": [
+        "assets/armadillo.obj",
+        "output/voxelized_debug.obj"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "lldb",
+      "miDebuggerPath": "/usr/bin/lldb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for lldb",
+          "text": "settings set target.pretty-printing true",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "build (serial-debug)"
+    },
+
+    {
       "name": "Release (gdb)",
       "type": "cppdbg",
       "request": "launch",

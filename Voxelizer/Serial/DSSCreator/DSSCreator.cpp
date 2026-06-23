@@ -7,6 +7,9 @@
 std::vector<Point2i> DSSCreator::rasterizeSegment(Point2i p1, Point2i p2) {
     int q = std::abs(p2.x - p1.x);
     int p = std::abs(p2.y - p1.y);
+    if (p == 0 && q == 0) {
+        return std::vector<Point2i> {p1};
+    }
     Point2i _p1, _p2;
     Values values;
     Flags flags;
