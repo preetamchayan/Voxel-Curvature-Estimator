@@ -30,9 +30,9 @@
       "name": "Debug (lldb - macOS)",
       "type": "lldb",
       "request": "launch",
-      "program": "${workspaceFolder}/voxelize",
+      "program": "${workspaceFolder}/voxelize_metal",
       "args": [
-        "assets/armadillo.obj",
+        "assets/cube.obj",
         "output/voxelized_debug.obj"
       ],
       "stopAtEntry": false,
@@ -48,7 +48,7 @@
           "ignoreFailures": true
         }
       ],
-      "preLaunchTask": "build (serial-debug)"
+      "preLaunchTask": "build (metal)"
     },
 
     {

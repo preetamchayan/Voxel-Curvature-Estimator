@@ -10,6 +10,8 @@
 #include "Cuda/MeshVoxelizerCudaEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_DIRECTX
 #include "DirectX/MeshVoxelizerDirectxEnv.h"
+#elif VOXELIZE_MODE == PARALLEL_METAL
+#include "Metal/MeshVoxelizerMetalEnv.h"
 #else
 #include "Serial/MeshVoxelizerSerialEnv.h"
 #endif
@@ -132,6 +134,8 @@ void MeshVoxelizer::voxelize(const MeshLoader& mesh, float scale) {
     m_baseEnv = new MeshVoxelizerCudaEnv();
 #elif VOXELIZE_MODE == PARALLEL_DIRECTX
     m_baseEnv = new MeshVoxelizerDirectxEnv();
+#elif VOXELIZE_MODE == PARALLEL_METAL
+    m_baseEnv = new MeshVoxelizerMetalEnv();
 #else
     #error "Invalid VOXELIZE_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, PARALLEL_CUDA  or PARALLEL_DIRECTX." 
 #endif
