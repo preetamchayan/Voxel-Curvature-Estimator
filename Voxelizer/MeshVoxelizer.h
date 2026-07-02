@@ -14,9 +14,10 @@
 #define PARALLEL_VULKAN 2  // OS-neutral,   Vendor-neutral, GPU-only
 #define PARALLEL_CUDA 3    // OS-neutral,   NVIDIA-only,    GPU-only
 #define PARALLEL_DIRECTX 4 // Windows-only, Vendor-neutral, GPU-only
+#define PARALLEL_METAL 5   // MacOS-only,   Apple-only,     GPU-only
 
 #ifndef VOXELIZE_MODE
-#define VOXELIZE_MODE SERIAL
+#define VOXELIZE_MODE PARALLEL_METAL
 #endif
 
 class MeshVoxelizer {
