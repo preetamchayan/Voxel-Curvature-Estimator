@@ -69,7 +69,7 @@ void OcTree::build(const std::vector<unsigned char>& voxels) {
                 int index = (z * R * C) + (y * R) + x;
                 if (voxels[index] == 1){
                     traverse(Point3i(x, y, z), INSERT);
-                    m_voxelCount++;
+                    // m_voxelCount++;
                 }
             }
         }

@@ -28,7 +28,6 @@ private:
     Dimensions3i m_dims;
     OcTree* m_ocTree;
     MeshVoxelizerBaseEnv* m_baseEnv;
-    int m_voxelCount;
 
 public:
     MeshVoxelizer(const BBox3d& bounds);

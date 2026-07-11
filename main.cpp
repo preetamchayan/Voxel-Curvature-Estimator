@@ -46,7 +46,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Voxelization complete. Total voxels generated: " << voxelizer.getVoxelCount() << std::endl;
 
     // Export to OBJ
-    // voxelizer.exportVoxelsOBJ(outputFile);
+    voxelizer.exportVoxelsOBJ(outputFile);
 
     //Estimate curvature
     // CurvatureEstimator curvatureEstimator(voxelizer.getVoxels(), voxelizer.getSceneBounds());

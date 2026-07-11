@@ -226,7 +226,6 @@ void MeshVoxelizerMetalEnv::voxelize(
     // Create compute pipeline
     createComputePipeline("voxelizeKernel");
     
-    id<MTLDevice> device = (id<MTLDevice>)m_device;
     id<MTLCommandQueue> commandQueue = (id<MTLCommandQueue>)m_commandQueue;
     id<MTLComputePipelineState> pipelineState = (id<MTLComputePipelineState>)m_pipelineState;
     id<MTLBuffer> facesBuffer = (id<MTLBuffer>)m_facesBuffer;
