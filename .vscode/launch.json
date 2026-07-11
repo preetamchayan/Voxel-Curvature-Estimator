@@ -32,7 +32,7 @@
       "request": "launch",
       "program": "${workspaceFolder}/voxelize_metal",
       "args": [
-        "assets/cube.obj",
+        "assets/armadillo.obj",
         "output/voxelized_debug.obj"
       ],
       "stopAtEntry": false,
