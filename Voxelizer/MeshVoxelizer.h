@@ -33,9 +33,11 @@ public:
     MeshVoxelizer(const BBox3d& bounds);
     ~MeshVoxelizer();
     void voxelize(const MeshLoader& mesh, float scale);
-    const std::vector<unsigned char>& getVoxels() const;
+    std::vector<unsigned char>& getVoxels();
     void getVoxels(std::vector<Point3i>& voxels) const;
     BBox3i getSceneBounds() const;
+    Dimensions3i getDimensions() const;
+    OcTree* getOcTree() const;
     void exportVoxelsOBJ(const std::string& filename) const;
     int getVoxelCount() const;
     void getRecommendedScaleRange(int& s_low, int& s_high) const;

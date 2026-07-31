@@ -460,43 +460,10 @@
         "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
         "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
         "Voxelizer/Metal/MeshVoxelizerMetalEnv.mm",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
         "-o",
-        "voxelize_metal",
-        "-framework",
-        "Metal",
-        "-framework",
-        "Foundation"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": false
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
-      },
-      "problemMatcher": ["$gcc"]
-    },
-    
-    {
-      "label": "build (metal)",
-      "type": "shell",
-      "command": "clang++",
-      "args": [
-        "-std=c++20",
-        "-Wall",
-        "-O2",
-        "main.cpp",
-        "Helper/OcTree/OcTree.cpp",
-        "Helper/MeshLoader/MeshLoader.cpp",
-        "Helper/HelperFunctions.cpp",
-        "Voxelizer/MeshVoxelizer.cpp",
-        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
-        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
-        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
-        "Voxelizer/Metal/MeshVoxelizerMetalEnv.mm",
-        "-o",
-        "voxelize_metal",
+        "metalCurvatureApp",
         "-framework",
         "Metal",
         "-framework",

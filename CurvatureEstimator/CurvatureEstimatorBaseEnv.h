@@ -6,7 +6,8 @@
 class CurvatureEstimatorBaseEnv {
 public:
     virtual ~CurvatureEstimatorBaseEnv() = default;
-    virtual void estimateCurvature(std::vector<unsigned char> &voxels,
-                                   const BBox3i &scaledBounds,
+    virtual void estimateCurvature(int curvLength,
+                                   std::vector<Point3i> &voxels,
+                                   std::vector<int>& curvatures,
                                    const Dimensions3i &dims) = 0;
 };
