@@ -15,6 +15,14 @@ OcTree::OcTree(const std::vector<unsigned char>& voxels, const BBox3i& bounds) :
     build(voxels);
 }
 
+OcTree::OcTree(const std::vector<Point3i>& voxels, const BBox3i& bounds) : m_bounds(bounds) {
+    m_nodes = {-1};
+    m_voxelCount = 0;
+    for (const auto& voxel : voxels) {
+        insert(voxel);
+    }
+}
+
 bool OcTree::search(Point3i p) {
     return traverse(p, SEARCH);
 }
@@ -68,7 +76,7 @@ void OcTree::build(const std::vector<unsigned char>& voxels) {
             for (int x = m_bounds.xmin; x <= m_bounds.xmax; x++) {
                 int index = (z * R * C) + (y * R) + x;
                 if (voxels[index] == 1){
-                    traverse(Point3i(x, y, z), INSERT);
+                    insert(Point3i(x, y, z));
                     // m_voxelCount++;
                 }
             }

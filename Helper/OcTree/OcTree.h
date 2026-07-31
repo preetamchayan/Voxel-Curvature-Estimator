@@ -11,6 +11,7 @@ class OcTree {
 public:
     OcTree(const BBox3i& bounds);
     OcTree(const std::vector<unsigned char>& voxels, const BBox3i& bounds);
+    OcTree(const std::vector<Point3i>& voxels, const BBox3i& bounds);
     bool search(Point3i p);
     bool insert(Point3i p);
     bool remove(Point3i p);

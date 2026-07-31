@@ -40,6 +40,7 @@ void TriangleVoxelizer::voxelizeTriangle(Point3i p1, Point3i p2, Point3i p3, OcT
             swap(&p2.z, &p3.z);
         }
         m_dssCreator.voxelizeSegment(p1, p3, ocTree);
+        return;
     }
 
     // finding the projected plane with maximum area

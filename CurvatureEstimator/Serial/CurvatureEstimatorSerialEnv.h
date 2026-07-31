@@ -1,38 +1,47 @@
 #pragma once
 
-#include "../Helper/GeometryTypes.h"
-#include "../Helper/MeshLoader/MeshLoader.h"
-#include "../Helper/OcTree/OcTree.h"
-#include "CurvatureEstimatorBaseEnv.h"
+#include "../../Helper/GeometryTypes.h"
+#include "../../Helper/OcTree/OcTree.h"
+#include "../CurvatureEstimatorBaseEnv.h"
 #include <vector>
 #include <array>
 #include <cmath>
 #include <limits>
 
-// OS-neutral     -- Windows/Linux
-// Vendor-neutral -- NVIDIA/AMD/Intel/Qualcomm
-// Device-neutral -- CPU, GPU, embedded devices
-#define SERIAL 0
-#define PARALLEL_OPENCL 1  // OS-neutral,   Vendor-neutral, Device-neutral
-#define PARALLEL_VULKAN 2  // OS-neutral,   Vendor-neutral, GPU-only
-#define PARALLEL_CUDA 3    // OS-neutral,   NVIDIA-only,    GPU-only
-#define PARALLEL_DIRECTX 4 // Windows-only, Vendor-neutral, GPU-only
-
-#ifndef CURVATURE_ESTIMATOR_MODE
-#define CURVATURE_ESTIMATOR_MODE SERIAL
-#endif
-
-class CurvatureEstimator{
+class CurvatureEstimatorSerialEnv : public CurvatureEstimatorBaseEnv {
 public:
-    CurvatureEstimator(const std::vector<unsigned char>& voxels, const BBox3i& bounds);
-    void estimateCurvature(std::vector<unsigned char> &voxels,
-                           const BBox3i &scaledBounds,
-                           const Dimensions3i &dims);
+    CurvatureEstimatorSerialEnv(OcTree* ocTree, OcTree* ocTreeInnerVoxel);
+    void estimateCurvature(int curveLength,
+                           std::vector<Point3i> &voxels,
+                           std::vector<int>& curvatures,
+                           const Dimensions3i &dims) override;
 private:
+    OcTree* m_ocTree;
+    OcTree* m_ocTreeInnerVoxel;
     std::vector<unsigned char> m_voxels;
-    BBox3i m_bounds;
-    int m_width, m_height, m_depth;
-    CurvatureEstimatorBaseEnv* m_baseEnv;
-    std::vector<Point3i> getNeighbors(int x, int y, int z);
-    double computeCurvatureAtVoxel(int x, int y, int z);
+    int m_curveLength;
+    Dimensions3i m_dims;
+private:
+    int computeCurvatureAtVoxel(Point3i voxel);
+    int computeCurvatureOfDigitalCurve3D(Point3i voxel, int plane);
+    void getNeighborsInPlane(Point3i voxel, int plane, std::vector<std::pair<Point3i, uint8_t>>& neighbors);
+    bool computeCurvatureOfDigitalCurve2D(
+        int plane,
+        Point3i voxel,
+        std::vector<std::pair<Point3i, uint8_t>>& trailCurve,
+        std::vector<std::pair<Point3i, uint8_t>>& leadCurve,
+        std::vector<Point3i>& curve3D,
+        uint8_t& prevTrailChainCode,
+        uint8_t& prevLeadChainCode,
+        int& curvatureSum,
+        int& curvature
+    );
+    bool findNextLevelVoxels(
+        int i,
+        int plane,
+        std::vector<std::pair<Point3i, uint8_t>>& curve,
+        const std::vector<Point3i>& curve3D
+    );
+    void addNeighbor(Point3i voxel, Point3i neighbor, int plane, int i, std::vector<std::pair<Point3i, uint8_t>>& neighbors);
+    uint8_t getChainCode(Point2i p1, Point2i p2);
 };

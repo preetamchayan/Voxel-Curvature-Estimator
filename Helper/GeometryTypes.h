@@ -1,10 +1,49 @@
 #pragma once
 
+#include <cmath>
+
 template <typename T>
 struct Point2 {
     T x, y;
     Point2() = default;
     Point2(T x, T y) : x(x), y(y) {}
+    Point2<T> operator-(const Point2<T>& other) const {
+        return Point2<T>(x - other.x, y - other.y);
+    }
+    Point2<T> operator+(const Point2<T>& other) const {
+        return Point2<T>(x + other.x, y + other.y);
+    }
+    Point2<T> operator*(T scalar) const {
+        return Point2<T>(x * scalar, y * scalar);
+    }
+    Point2<T> operator/(T scalar) const {
+        return Point2<T>(x / scalar, y / scalar);
+    }
+    Point2<T> operator=(const Point2<T>& other) {
+        x = other.x;
+        y = other.y;
+        return *this;
+    }
+    bool operator==(const Point2<T>& other) const {
+        return x == other.x && y == other.y;
+    }
+    bool operator!=(const Point2<T>& other) const {
+        return !(*this == other);
+    }
+    T dot(const Point2<T>& other) const {
+        return x * other.x + y * other.y;
+    }
+    T cross(const Point2<T>& other) const {
+        return x * other.y - y * other.x;
+    }
+    T length() const {
+        return std::sqrt(x * x + y * y);
+    }
+    Point2<T> normalized() const {
+        T len = length();
+        if (len == 0) return Point2<T>(0, 0);
+        return Point2<T>(x / len, y / len);
+    }
 };
 
 using Point2i = Point2<int>;
@@ -16,6 +55,46 @@ struct Point3 {
     T x, y, z;
     Point3() = default;
     Point3(T x, T y, T z) : x(x), y(y), z(z) {}
+    Point3<T> operator-(const Point3<T>& other) const {
+        return Point3<T>(x - other.x, y - other.y, z - other.z);
+    }
+    Point3<T> operator+(const Point3<T>& other) const {
+        return Point3<T>(x + other.x, y + other.y, z + other.z);
+    }
+    Point3<T> operator*(T scalar) const {
+        return Point3<T>(x * scalar, y * scalar, z * scalar);
+    }
+    Point3<T> operator/(T scalar) const {
+        return Point3<T>(x / scalar, y / scalar, z / scalar);
+    }
+    Point3<T> operator=(const Point3<T>& other) {
+        x = other.x;
+        y = other.y;
+        z = other.z;
+        return *this;
+    }
+    bool operator==(const Point3<T>& other) const {
+        return x == other.x && y == other.y && z == other.z;
+    }
+    bool operator!=(const Point3<T>& other) const {
+        return !(*this == other);
+    }
+    T dot(const Point3<T>& other) const {
+        return x * other.x + y * other.y + z * other.z;
+    }
+    Point3<T> cross(const Point3<T>& other) const {
+        return Point3<T>(y * other.z - z * other.y,
+                         z * other.x - x * other.z,
+                         x * other.y - y * other.x);
+    }
+    T length() const {
+        return std::sqrt(x * x + y * y + z * z);
+    }
+    Point3<T> normalized() const {
+        T len = length();
+        if (len == 0) return Point3<T>(0, 0, 0);
+        return Point3<T>(x / len, y / len, z / len);
+    }
 };
 
 using Point3i = Point3<int>;
@@ -24,6 +103,12 @@ using Point3d = Point3<double>;
 
 struct Face {
     int v1, v2, v3;
+};
+
+struct Color {
+    float r, g, b;
+    Color() = default;
+    Color(float r, float g, float b) : r(r), g(g), b(b) {}
 };
 
 template <typename T>
@@ -47,6 +132,42 @@ using BBox3d = BBox3<double>;
 template <typename T>
 struct Dimensions3 {
     T width, height, depth;
+    Dimensions3<T> operator-(const Dimensions3<T>& other) const {
+        return Dimensions3<T>(width - other.width, height - other.height, depth - other.depth);
+    }
+    Dimensions3<T> operator+(const Dimensions3<T>& other) const {
+        return Dimensions3<T>(width + other.width, height + other.height, depth + other.depth);
+    }
+    Dimensions3<T> operator*(T scalar) const {
+        return Dimensions3<T>(width * scalar, height * scalar, depth * scalar);
+    }
+    Dimensions3<T> operator/(T scalar) const {
+        return Dimensions3<T>(width / scalar, height / scalar, depth / scalar);
+    }
+    Dimensions3<T> operator=(const Dimensions3<T>& other) {
+        width = other.width;
+        height = other.height;
+        depth = other.depth;
+        return *this;
+    }
+    bool operator==(const Dimensions3<T>& other) const {
+        return width == other.width && height == other.height && depth == other.depth;
+    }
+    bool operator!=(const Dimensions3<T>& other) const {
+        return !(*this == other);
+    }
+    bool operator<(const Dimensions3<T>& other) const {
+        return width < other.width && height < other.height && depth < other.depth;
+    }
+    bool operator>(const Dimensions3<T>& other) const {
+        return width > other.width && height > other.height && depth > other.depth;
+    }
+    bool operator<=(const Dimensions3<T>& other) const {
+        return width <= other.width && height <= other.height && depth <= other.depth;
+    }
+    bool operator>=(const Dimensions3<T>& other) const {
+        return width >= other.width && height >= other.height && depth >= other.depth;
+    }
 };
 
 using Dimensions3i = Dimensions3<int>;

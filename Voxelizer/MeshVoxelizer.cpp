@@ -1,4 +1,5 @@
 #include "MeshVoxelizer.h"
+#include "../Helper/HelperFunctions.h"
 #include <cmath>
 
 // Include only the selected parallel environment header to avoid optional dependency
@@ -43,12 +44,20 @@ BBox3i MeshVoxelizer::getSceneBounds() const {
     return m_scaledBounds;
 }
 
-const std::vector<unsigned char>& MeshVoxelizer::getVoxels() const {
+Dimensions3i MeshVoxelizer::getDimensions() const {
+    return m_dims;
+}
+
+std::vector<unsigned char>& MeshVoxelizer::getVoxels() {
     return m_voxels;
 }
 
 void MeshVoxelizer::getVoxels(std::vector<Point3i>& voxels) const {
     m_ocTree->getVoxels(voxels);
+}
+
+OcTree* MeshVoxelizer::getOcTree() const {
+    return m_ocTree;
 }
 
 int MeshVoxelizer::getVoxelCount() const {
@@ -163,35 +172,17 @@ void MeshVoxelizer::exportVoxelsOBJ(const std::string& filename) const {
          << m_scaledBounds.zmin << ") to (" << m_scaledBounds.xmax << ", " << m_scaledBounds.ymax << ", "
          << m_scaledBounds.zmax << ")\n\n";
 
-    auto writeToFile = [&] (int x, int y, int z) {
-        if (logFile.is_open()) {
-            logFile << "(" << x << ", " << y << ", " << z << ")\n";
-        }
-
-        file << "v " << x       << " " << y       << " " << z + 1   << "\n";  // v0: -8
-        file << "v " << x + 1   << " " << y       << " " << z + 1   << "\n";  // v1: -7
-        file << "v " << x + 1   << " " << y + 1   << " " << z + 1   << "\n";  // v2: -6
-        file << "v " << x       << " " << y + 1   << " " << z + 1   << "\n";  // v3: -5
-        file << "v " << x + 1   << " " << y + 1   << " " << z       << "\n";  // v4: -4
-        file << "v " << x + 1   << " " << y       << " " << z       << "\n";  // v5: -3
-        file << "v " << x       << " " << y       << " " << z       << "\n";  // v6: -2
-        file << "v " << x       << " " << y + 1   << " " << z       << "\n";  // v7: -1
-
-        file << "f -8 -7 -6 -5\n";
-        file << "f -4 -3 -2 -1\n";
-        file << "f -3 -4 -6 -7\n";
-        file << "f -2 -8 -5 -1\n";
-        file << "f -2 -3 -7 -8\n";
-        file << "f -1 -5 -6 -4\n";
-    };
-
 #if VOXELIZE_MODE == SERIAL
     std::vector<Point3i> occupiedVoxels;
     m_ocTree->getVoxels(occupiedVoxels);
     std::cout << "Exporting " << occupiedVoxels.size() << " occupied voxels to OBJ file." << std::endl;
 
-    for (const auto& voxel : occupiedVoxels)
-        writeToFile(voxel.x, voxel.y, voxel.z);
+    for (const auto& voxel : occupiedVoxels) {
+        if (logFile.is_open()) {
+            logFile << "(" << x << ", " << y << ", " << z << ")\n";
+        }
+        writePointToVoxel(voxel, file);
+    }
 #else
     int R = m_scaledBounds.xmax - m_scaledBounds.xmin + 3;
     int C = m_scaledBounds.ymax - m_scaledBounds.ymin + 3;
@@ -201,7 +192,7 @@ void MeshVoxelizer::exportVoxelsOBJ(const std::string& filename) const {
             for (int z = m_scaledBounds.zmin; z <= m_scaledBounds.zmax + 1; ++z) {
                 int idx = (x - m_scaledBounds.xmin) + (y - m_scaledBounds.ymin) * R + (z - m_scaledBounds.zmin) * R * C;
                 if (idx >= 0 && idx < m_voxels.size() && m_voxels[idx] == 1)
-                    writeToFile(x, y, z);
+                    writePointToVoxel(Point3i(x, y, z), file);
             }
         }
     }

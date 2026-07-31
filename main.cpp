@@ -1,6 +1,6 @@
 #include "Helper/MeshLoader/MeshLoader.h"
 #include "Voxelizer/MeshVoxelizer.h"
-#include "CurvatureEstimator/CurvatureEstimatorBaseEnv.h"
+#include "CurvatureEstimator/CurvatureEstimator.h"
 #include "Helper/OcTree/OcTree.h"
 #include <iostream>
 #include <string>
@@ -8,14 +8,15 @@
 #include <cassert>
 
 int main(int argc, char* argv[]) {
-    if (argc != 3) {
-        std::cerr << "Usage: " << argv[0] << " <input_obj> <output_obj>" << std::endl;
-        std::cerr << "Example: " << argv[0] << " input.obj output.obj" << std::endl;
+    if (argc != 4) {
+        std::cerr << "Usage: " << argv[0] << " <input_obj> <output_voxel_obj> <output_curvature_obj>" << std::endl;
+        std::cerr << "Example: " << argv[0] << " input.obj outputVoxel.obj outputCurvature.obj" << std::endl;
         return 1;
     }
 
     std::string inputFile = argv[1];
-    std::string outputFile = argv[2];
+    std::string outputFileVoxel = argv[2];
+    std::string outputFileCurvature = argv[3];
 
     // Load mesh
     MeshLoader meshLoader;
@@ -46,10 +47,20 @@ int main(int argc, char* argv[]) {
     std::cout << "Voxelization complete. Total voxels generated: " << voxelizer.getVoxelCount() << std::endl;
 
     // Export to OBJ
-    voxelizer.exportVoxelsOBJ(outputFile); 
+    voxelizer.exportVoxelsOBJ(outputFileVoxel);
 
+    int curveLength;
+    std::cout << "Enter curve length for curvature estimation: ";
+    std::cin >> curveLength;
     //Estimate curvature
-    // CurvatureEstimator curvatureEstimator(voxelizer.getVoxels(), voxelizer.getSceneBounds());
+    CurvatureEstimator curvatureEstimator(
+        voxelizer.getVoxels(),
+        voxelizer.getOcTree(),
+        voxelizer.getSceneBounds(),
+        voxelizer.getDimensions()
+    );
+    curvatureEstimator.estimateCurvature(curveLength);
+    curvatureEstimator.exportCurvatureOBJ(outputFileCurvature);
 
     return 0;
 }
