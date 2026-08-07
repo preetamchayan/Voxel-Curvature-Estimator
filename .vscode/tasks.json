@@ -2,468 +2,261 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "build (debug)",
-      "dependsOn": ["compile shader"],
-      "type": "shell",
-      "command": "g++",
-      "args": [
-        "-std=c++20",
-        "-Wall",
-        "-O0",
-        "-g",
-        "main.cpp",
-        "Helper/OcTree/OcTree.cpp",
-        "Helper/MeshLoader/MeshLoader.cpp",
-        "Helper/HelperFunctions.cpp",
-        "Voxelizer/MeshVoxelizer.cpp",
-        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
-        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
-        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
-        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
-        // "CurvatureEstimator/CurvatureEstimator.cpp",
-        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
-        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
-        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
-        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
-        "-o",
-        "voxelizer",
-        "-lOpenCL",
-        "-lvulkan"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": "$gcc"
-    },
-
-    {
-      "label": "build (serial-debug)",
-      "type": "shell",
-      "command": "g++",
-      "args": [
-        "-std=c++20",
-        "-Wall",
-        "-O0",
-        "-g",
-        "main.cpp",
-        "Helper/OcTree/OcTree.cpp",
-        "Helper/MeshLoader/MeshLoader.cpp",
-        "Helper/HelperFunctions.cpp",
-        "Voxelizer/MeshVoxelizer.cpp",
-        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
-        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
-        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
-        "-o",
-        "voxelize"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": "$gcc"
-    },
-
-    {
       "label": "compile shader",
       "type": "shell",
       "command": "glslangValidator",
       "args": [
         "-V",
-        "Voxelizer/Vulkan/MeshVoxelizerKernel.comp",
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerKernel.comp",
         "-o",
-        "Voxelizer/Vulkan/MeshVoxelizerKernel.spv"
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerKernel.spv"
       ],
       "problemMatcher": []
     },
 
     {
-      "label": "build (release)",
+      "label": "compile cuda env (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerCudaEnv.cu",
+        "-o",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerCudaEnv.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile cuda kernel (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.cu",
+        "-o",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile cuda env (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerCudaEnv.cu",
+        "-o",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerCudaEnv.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile cuda kernel (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.cu",
+        "-o",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "build (debug - Windows)",
       "dependsOn": ["compile shader"],
       "type": "shell",
-      "command": "g++",
+      "command": "clang++",
       "args": [
         "-std=c++20",
         "-Wall",
-        "-O2",
+        "-O0",
+        "-g",
+        "-D_CRT_SECURE_NO_WARNINGS",
+        "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH",
+        "-DNOMINMAX",
+        "-I${env:VULKAN_SDK}\\Include",
+        "-I${env:OPENCL_SDK}\\include",
         "main.cpp",
-        "Helper/OcTree/OcTree.cpp",
         "Helper/MeshLoader/MeshLoader.cpp",
         "Helper/HelperFunctions.cpp",
         "Voxelizer/MeshVoxelizer.cpp",
         "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
         "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
         "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
-        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
-        // "CurvatureEstimator/CurvatureEstimator.cpp",
-        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
-        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
-        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
-        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
+        "Voxelizer/Parallel/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        "Voxelizer/Parallel/DirectX/MeshVoxelizerDirectXEnv.cpp",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
         "-o",
-        "voxelizer",
+        "windowsApp.exe",
+        "-L${env:VULKAN_SDK}\\Lib",
+        "-L${env:OPENCL_SDK}\\lib",
+        "-lvulkan-1",
         "-lOpenCL",
-        "-lvulkan"
+        "-ld3d11",
+        "-ld3dcompiler",
+        "-ldxgi"
       ],
       "group": {
         "kind": "build",
-        "isDefault": false
+        "isDefault": true
       },
       "problemMatcher": "$gcc"
     },
 
     {
-      "label": "compile mesh voxelizer cuda env (debug)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O0",
-        "-g",
-        // "-rdc=true",
-        "-c",
-        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.cu",
-        "-o",
-        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
-
-    {
-      "label": "compile mesh voxelizer cuda kernel (debug)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O0",
-        "-g",
-        // "-rdc=true",
-        "-c",
-        "Voxelizer/Cuda/MeshVoxelizerKernel.cu",
-        "-o",
-        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
-
-    // {
-    //   "label": "compile dss creator cuda kernel (debug)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O0",
-    //     "-g",
-    //     "-rdc=true",
-    //     "-dc",
-    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.cu",
-    //     "-o",
-    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    // {
-    //   "label": "compile triangle voxelizer cuda kernel (debug)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O0",
-    //     "-g",
-    //     "-rdc=true",
-    //     "-dc",
-    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.cu",
-    //     "-o",
-    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    // {
-    //   "label": "compile curvature estimator cuda env (debug)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O0",
-    //     "-g",
-    //     "-c",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
-    //     "-o",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    // {
-    //   "label": "compile curvature estimator cuda kernel (debug)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O0",
-    //     "-g",
-    //     "-c",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
-    //     "-o",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    {
-      "label": "build (debug - cuda)",
-      "dependsOn": [
-        "compile mesh voxelizer cuda env (debug)",
-        "compile mesh voxelizer cuda kernel (debug)",
-        "compile shader"
-        // "compile dss creator cuda kernel (debug)",
-        // "compile triangle voxelizer cuda kernel (debug)"
-        // "compile curvature estimator cuda env (debug)",
-        // "compile curvture estimator cuda kernel (debug)"
-      ],
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-std=c++20",
-        // "-Wall",
-        "-O0",
-        "-g",
-        "main.cpp",
-        "Helper/OcTree/OcTree.cpp",
-        "Helper/MeshLoader/MeshLoader.cpp",
-        "Helper/HelperFunctions.cpp",
-        "Voxelizer/MeshVoxelizer.cpp",
-        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
-        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
-        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
-        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
-        // "CurvatureEstimator/CurvatureEstimator.cpp",
-        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
-        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
-        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
-        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
-        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
-        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
-        // "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
-        // "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
-        // "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
-        // "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
-        "-I/usr/local/cuda/include",
-        "-o",
-        "voxelizer",
-        "-lOpenCL",
-        "-lvulkan",
-        "-L/usr/local/cuda/lib64",
-        "-lcudart"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": false
-      },
-      "problemMatcher": "$gcc"
-    },
-
-    {
-      "label": "compile mesh voxelizer cuda env (release)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O2",
-        // "-rdc=true",
-        "-c",
-        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.cu",
-        "-o",
-        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
-
-    {
-      "label": "compile mesh voxelizer cuda kernel (release)",
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-ccbin",
-        "g++",
-        "-O2",
-        // "-rdc=true",
-        "-c",
-        "Voxelizer/Cuda/MeshVoxelizerKernel.cu",
-        "-o",
-        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
-        "-I/usr/local/cuda/include"
-      ],
-      "problemMatcher": []
-    },
-
-    // {
-    //   "label": "compile dss creator cuda kernel (release)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O2",
-    //     "-rdc=true",
-    //     "-dc",
-    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.cu",
-    //     "-o",
-    //     "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    // {
-    //   "label": "compile triangle voxelizer cuda kernel (release)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O2",
-    //     "-rdc=true",
-    //     "-dc",
-    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.cu",
-    //     "-o",
-    //     "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    // {
-    //   "label": "compile curvature estimator cuda env (release)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O2",
-    //     "-c",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.cu",
-    //     "-o",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    // {
-    //   "label": "compile curvature estimator cuda kernel (release)",
-    //   "type": "shell",
-    //   "command": "nvcc",
-    //   "args": [
-    //     "-ccbin",
-    //     "g++",
-    //     "-O2",
-    //     "-c",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.cu",
-    //     "-o",
-    //     "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
-    //     "-I/usr/local/cuda/include"
-    //   ],
-    //   "problemMatcher": []
-    // },
-
-    {
-      "label": "build (release - cuda)",
-      "dependsOn": [
-        "compile mesh voxelizer cuda env (release)",
-        "compile mesh voxelizer cuda kernel (release)",
-        "compile shader"
-        // "compile dss creator cuda kernel (release)",
-        // "compile triangle voxelizer cuda kernel (release)"
-        // "compile curvature estimator cuda kernel (release)",
-        // "compile curvature estimator cuda env (release)"
-      ],
-      "type": "shell",
-      "command": "nvcc",
-      "args": [
-        "-std=c++20",
-        // "-Wall",
-        "-O2",
-        "main.cpp",
-        "Helper/OcTree/OcTree.cpp",
-        "Helper/MeshLoader/MeshLoader.cpp",
-        "Helper/HelperFunctions.cpp",
-        "Voxelizer/MeshVoxelizer.cpp",
-        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
-        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
-        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
-        "Voxelizer/OpenCL/MeshVoxelizerOclEnv.cpp",
-        "Voxelizer/DirectX/MeshVoxelizerDirectxEnv.cpp",
-        "Voxelizer/Vulkan/MeshVoxelizerVulkanEnv.cpp",
-        // "CurvatureEstimator/CurvatureEstimator.cpp",
-        // "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
-        // "CurvatureEstimator/Vulkan/CurvatureEstimatorVulkanEnv.cpp",
-        // "CurvatureEstimator/OpenCL/CurvatureEstimatorOclEnv.cpp",
-        // "CurvatureEstimator/DirectX/CurvatureEstimatorDirectxEnv.cpp",
-        "Voxelizer/Cuda/MeshVoxelizerCudaEnv.o",
-        "Voxelizer/Cuda/MeshVoxelizerKernel.o",
-        // "Voxelizer/Cuda/DSSCreator/DSSCreator.o",
-        // "Voxelizer/Cuda/TriangleVoxelizer/TriangleVoxelizer.o",
-        // "CurvatureEstimator/Cuda/CurvatureEstimatorCudaEnv.o",
-        // "CurvatureEstimator/Cuda/CurvatureEstimatorKernel.o",
-        "-I/usr/local/cuda/include",
-        "-o",
-        "voxelizer",
-        "-lOpenCL",
-        "-lvulkan",
-        "-L/usr/local/cuda/lib64",
-        "-lcudart"
-      ],
-      "group": {
-        "kind": "build",
-        "isDefault": false
-      },
-      "problemMatcher": "$gcc"
-    },
-
-    {
-      "label": "build (metal)",
+      "label": "build (release - Windows)",
+      "dependsOn": ["compile shader"],
       "type": "shell",
       "command": "clang++",
       "args": [
         "-std=c++20",
         "-Wall",
         "-O2",
+        "-D_CRT_SECURE_NO_WARNINGS",
+        "-D_ALLOW_COMPILER_AND_STL_VERSION_MISMATCH",
+        "-DNOMINMAX",
+        "-I${env:VULKAN_SDK}\\Include",
+        "-I${env:OPENCL_SDK}\\include",
         "main.cpp",
-        "Helper/OcTree/OcTree.cpp",
         "Helper/MeshLoader/MeshLoader.cpp",
         "Helper/HelperFunctions.cpp",
         "Voxelizer/MeshVoxelizer.cpp",
         "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
         "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
         "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
-        "Voxelizer/Metal/MeshVoxelizerMetalEnv.mm",
+        "Voxelizer/Parallel/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        "Voxelizer/Parallel/DirectX/MeshVoxelizerDirectXEnv.cpp",
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
         "-o",
-        "metalCurvatureApp",
+        "windowsApp.exe",
+        "-L${env:VULKAN_SDK}\\Lib",
+        "-L${env:OPENCL_SDK}\\lib",
+        "-lvulkan-1",
+        "-lOpenCL",
+        "-ld3d11",
+        "-ld3dcompiler",
+        "-ldxgi"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "build (debug - Linux)",
+      "dependsOn": ["compile shader"],
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-std=c++20",
+        "-Wall",
+        "-O0",
+        "-g",
+        "main.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/Parallel/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        "-o",
+        "linuxApp",
+        "-lOpenCL",
+        "-lvulkan"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "build (release - Linux)",
+      "dependsOn": ["compile shader"],
+      "type": "shell",
+      "command": "g++",
+      "args": [
+        "-std=c++20",
+        "-Wall",
+        "-O2",
+        "main.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/Parallel/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        "-o",
+        "linuxApp",
+        "-lOpenCL",
+        "-lvulkan"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "build (debug - Mac)",
+      "type": "shell",
+      "command": "clang++",
+      "args": [
+        "-std=c++20",
+        "-Wall",
+        "-O0",
+        "-g",
+        "main.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/Parallel/Metal/MeshVoxelizerMetalEnv.mm",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        "-o",
+        "macApp",
         "-framework",
         "Metal",
         "-framework",
@@ -473,11 +266,120 @@
         "kind": "build",
         "isDefault": false
       },
-      "presentation": {
-        "reveal": "always",
-        "panel": "shared"
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "build (release - Mac)",
+      "type": "shell",
+      "command": "clang++",
+      "args": [
+        "-std=c++20",
+        "-Wall",
+        "-O2",
+        "main.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/Parallel/Metal/MeshVoxelizerMetalEnv.mm",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        "-o",
+        "macApp",
+        "-framework",
+        "Metal",
+        "-framework",
+        "Foundation"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
       },
-      "problemMatcher": ["$gcc"]
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "build (debug - Cuda)",
+      "dependsOn": [
+        "compile cuda env (debug)",
+        "compile cuda kernel (debug)",
+        "compile shader"
+      ],
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-std=c++20",
+        "-O0",
+        "-g",
+        "main.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/Parallel/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerCudaEnv.o",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.o",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        "-I/usr/local/cuda/include",
+        "-o",
+        "cudaApp",
+        "-lOpenCL",
+        "-lvulkan",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
+    },
+
+    {
+      "label": "build (release - Cuda)",
+      "dependsOn": [
+        "compile cuda env (release)",
+        "compile cuda kernel (release)",
+        "compile shader"
+      ],
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-std=c++20",
+        "-O2",
+        "main.cpp",
+        "Helper/MeshLoader/MeshLoader.cpp",
+        "Helper/HelperFunctions.cpp",
+        "Voxelizer/MeshVoxelizer.cpp",
+        "Voxelizer/Serial/MeshVoxelizerSerialEnv.cpp",
+        "Voxelizer/Serial/DSSCreator/DSSCreator.cpp",
+        "Voxelizer/Serial/TriangleVoxelizer/TriangleVoxelizer.cpp",
+        "Voxelizer/Parallel/OpenCL/MeshVoxelizerOclEnv.cpp",
+        "Voxelizer/Parallel/Vulkan/MeshVoxelizerVulkanEnv.cpp",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerCudaEnv.o",
+        "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.o",
+        "CurvatureEstimator/CurvatureEstimator.cpp",
+        "CurvatureEstimator/Serial/CurvatureEstimatorSerialEnv.cpp",
+        "-I/usr/local/cuda/include",
+        "-o",
+        "cudaApp",
+        "-lOpenCL",
+        "-lvulkan",
+        "-L/usr/local/cuda/lib64",
+        "-lcudart"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "problemMatcher": "$gcc"
     }
   ]
 }

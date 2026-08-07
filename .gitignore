@@ -1,2 +1,10 @@
 output/*.obj
 output/*.obj
+output/*.txt
+output/*.mtl
+*.obj
+*.pdb
+*.ilk
+*.exe
+.DS_Store
+metalApp

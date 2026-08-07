@@ -15,45 +15,33 @@
 #endif
 
 #include "../Helper/GeometryTypes.h"
-#include "../Helper/OcTree/OcTree.h"
 #include "CurvatureEstimatorBaseEnv.h"
 
 #include <vector>
+#include <string>
+#include <fstream>
 
 class CurvatureEstimator {
 public:
     CurvatureEstimator(
         std::vector<unsigned char>& voxels,
-        OcTree* ocTree,
         const BBox3i& bounds,
         const Dimensions3i& dims
     );
     ~CurvatureEstimator();
     void estimateCurvature(int curveLength);
-    const std::vector<Point3i>& getVoxels() const;
+    const std::vector<unsigned char>& getVoxels() const;
     BBox3i getSceneBounds() const;
     void exportCurvatureOBJ(const std::string& filename) const;
 private:
-    std::vector<Point3i> m_voxels;
+    std::vector<unsigned char>& m_voxels;
     std::vector<int> m_curvatures;
     BBox3i m_bounds;
     Dimensions3i m_dims;
-    OcTree* m_ocTree;
-    OcTree* m_ocTreeInnerVoxel;
+    int m_curveLength;
     CurvatureEstimatorBaseEnv* m_baseEnv;
     std::vector<Color> m_colors;
 private:
-    void computeInnerSpaceAndFrontierVoxels(std::vector<unsigned char>& voxels);
-    void computeInnerSpaceVoxels(
-        std::vector<unsigned char>& voxels,
-        std::vector<OcTree>& ocTrees,
-        int R, int C, int D, int plane
-    );
-    void markInteriorVoxels(
-        std::vector<unsigned char>& voxels,
-        std::vector<OcTree>& ocTrees
-    );
-    void computeFrontierVoxels(std::vector<unsigned char>& voxels);
     void averageCurvature();
-    std::vector<Color>& writeMaterialFile(int maxCurvature, std::ofstream& fp);
+    void writeMaterialFile(int maxCurvature, std::ofstream& fp, std::vector<Color>& colors);
 };

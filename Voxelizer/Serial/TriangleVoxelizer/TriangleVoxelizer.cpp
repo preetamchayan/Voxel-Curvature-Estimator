@@ -5,7 +5,27 @@
 #include <cassert>
 #include <climits>
 
-void TriangleVoxelizer::voxelizeTriangle(Point3i p1, Point3i p2, Point3i p3, OcTree* ocTree) {
+void TriangleVoxelizer::voxelizeTriangle(
+    Point3i p1,
+    Point3i p2,
+    Point3i p3,
+    std::vector<unsigned char>& grid,
+    const BBox3i& bounds,
+    const Dimensions3i& dims
+) {
+    auto markVoxel = [&](const Point3i& voxel) {
+        const int x = voxel.x - bounds.xmin;
+        const int y = voxel.y - bounds.ymin;
+        const int z = voxel.z - bounds.zmin;
+        if (x < 0 || x >= dims.width ||
+            y < 0 || y >= dims.height ||
+            z < 0 || z >= dims.depth) {
+            return;
+        }
+        grid[static_cast<size_t>(x) +
+             static_cast<size_t>(y) * dims.width +
+             static_cast<size_t>(z) * dims.width * dims.height] = 1;
+    };
     Point3i p12, p13;
 
     // determining the co-efficients of the plane equation of the triangle
@@ -39,7 +59,7 @@ void TriangleVoxelizer::voxelizeTriangle(Point3i p1, Point3i p2, Point3i p3, OcT
             swap(&p2.y, &p3.y);
             swap(&p2.z, &p3.z);
         }
-        m_dssCreator.voxelizeSegment(p1, p3, ocTree);
+        m_dssCreator.voxelizeSegment(p1, p3, grid, bounds, dims);
         return;
     }
 
@@ -80,7 +100,7 @@ void TriangleVoxelizer::voxelizeTriangle(Point3i p1, Point3i p2, Point3i p3, OcT
             if (axis == 1) { i = zz; j = x; k = y + yBound.x; }
             else if (axis == 2) { i = x; j = zz; k = y + yBound.x; }
             else { i = x; j = y + yBound.x; k = zz; }
-            ocTree->insert(Point3i(i, j, k));
+            markVoxel(Point3i(i, j, k));
         }
     }
 }

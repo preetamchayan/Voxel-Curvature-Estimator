@@ -4,15 +4,15 @@
 
 // Include only the selected parallel environment header to avoid optional dependency
 #if VOXELIZE_MODE == PARALLEL_OPENCL
-#include "OpenCL/MeshVoxelizerOclEnv.h"
+#include "Parallel/OpenCL/MeshVoxelizerOclEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_VULKAN
-#include "Vulkan/MeshVoxelizerVulkanEnv.h"
+#include "Parallel/Vulkan/MeshVoxelizerVulkanEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_CUDA
-#include "Cuda/MeshVoxelizerCudaEnv.h"
+#include "Parallel/Cuda/MeshVoxelizerCudaEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_DIRECTX
-#include "DirectX/MeshVoxelizerDirectxEnv.h"
+#include "Parallel/DirectX/MeshVoxelizerDirectXEnv.h"
 #elif VOXELIZE_MODE == PARALLEL_METAL
-#include "Metal/MeshVoxelizerMetalEnv.h"
+#include "Parallel/Metal/MeshVoxelizerMetalEnv.h"
 #else
 #include "Serial/MeshVoxelizerSerialEnv.h"
 #endif
@@ -27,14 +27,10 @@
 int maxSize = INT_MIN;
 
 MeshVoxelizer::MeshVoxelizer(const BBox3d& bounds) : m_unscaledBounds(bounds) {
-    m_ocTree = nullptr;
     m_baseEnv = nullptr;
 }
 
 MeshVoxelizer::~MeshVoxelizer() {
-    if (m_ocTree) {
-        delete m_ocTree;
-    }
     if (m_baseEnv) {
         delete m_baseEnv;
     }
@@ -52,20 +48,8 @@ std::vector<unsigned char>& MeshVoxelizer::getVoxels() {
     return m_voxels;
 }
 
-void MeshVoxelizer::getVoxels(std::vector<Point3i>& voxels) const {
-    m_ocTree->getVoxels(voxels);
-}
-
-OcTree* MeshVoxelizer::getOcTree() const {
-    return m_ocTree;
-}
-
 int MeshVoxelizer::getVoxelCount() const {
-#if VOXELIZE_MODE == SERIAL
-    return m_ocTree->getVoxelCount();
-#else
     return std::count(m_voxels.begin(), m_voxels.end(), 1);
-#endif
 }
 
 void MeshVoxelizer::getRecommendedScaleRange(int& s_low, int& s_high) const {
@@ -82,14 +66,6 @@ void MeshVoxelizer::getRecommendedScaleRange(int& s_low, int& s_high) const {
     while ((int)(maximum * (float)p) < 1000) p += 50;
     s_high = p;
     s_low = p / 10;
-}
-
-bool MeshVoxelizer::search(Point3i point) const {
-    return m_ocTree->search(point);
-}
-
-bool MeshVoxelizer::remove(Point3i point) const {
-    return m_ocTree->remove(point);
 }
 
 void MeshVoxelizer::voxelize(const MeshLoader& mesh, float scale) {
@@ -133,8 +109,7 @@ void MeshVoxelizer::voxelize(const MeshLoader& mesh, float scale) {
     m_voxels.assign(R * C * D, 0);
 
 #if VOXELIZE_MODE == SERIAL
-    m_ocTree = new OcTree(m_scaledBounds);
-    m_baseEnv = new MeshVoxelizerSerialEnv(m_ocTree);
+    m_baseEnv = new MeshVoxelizerSerialEnv();
 #elif VOXELIZE_MODE == PARALLEL_OPENCL
     m_baseEnv = new MeshVoxelizerOclEnv();
 #elif VOXELIZE_MODE == PARALLEL_VULKAN
@@ -142,7 +117,7 @@ void MeshVoxelizer::voxelize(const MeshLoader& mesh, float scale) {
 #elif VOXELIZE_MODE == PARALLEL_CUDA
     m_baseEnv = new MeshVoxelizerCudaEnv();
 #elif VOXELIZE_MODE == PARALLEL_DIRECTX
-    m_baseEnv = new MeshVoxelizerDirectxEnv();
+    m_baseEnv = new MeshVoxelizerDirectXEnv();
 #elif VOXELIZE_MODE == PARALLEL_METAL
     m_baseEnv = new MeshVoxelizerMetalEnv();
 #else
@@ -172,31 +147,28 @@ void MeshVoxelizer::exportVoxelsOBJ(const std::string& filename) const {
          << m_scaledBounds.zmin << ") to (" << m_scaledBounds.xmax << ", " << m_scaledBounds.ymax << ", "
          << m_scaledBounds.zmax << ")\n\n";
 
-#if VOXELIZE_MODE == SERIAL
-    std::vector<Point3i> occupiedVoxels;
-    m_ocTree->getVoxels(occupiedVoxels);
-    std::cout << "Exporting " << occupiedVoxels.size() << " occupied voxels to OBJ file." << std::endl;
+    std::cout << "Exporting " << getVoxelCount() << " occupied voxels to OBJ file." << std::endl;
 
-    for (const auto& voxel : occupiedVoxels) {
-        if (logFile.is_open()) {
-            logFile << "(" << x << ", " << y << ", " << z << ")\n";
-        }
-        writePointToVoxel(voxel, file);
-    }
-#else
-    int R = m_scaledBounds.xmax - m_scaledBounds.xmin + 3;
-    int C = m_scaledBounds.ymax - m_scaledBounds.ymin + 3;
-    // Iterate through voxel grid
-    for (int x = m_scaledBounds.xmin; x <= m_scaledBounds.xmax + 1; ++x) {
-        for (int y = m_scaledBounds.ymin; y <= m_scaledBounds.ymax + 1; ++y) {
-            for (int z = m_scaledBounds.zmin; z <= m_scaledBounds.zmax + 1; ++z) {
-                int idx = (x - m_scaledBounds.xmin) + (y - m_scaledBounds.ymin) * R + (z - m_scaledBounds.zmin) * R * C;
-                if (idx >= 0 && idx < m_voxels.size() && m_voxels[idx] == 1)
-                    writePointToVoxel(Point3i(x, y, z), file);
+    for (int z = 0; z < m_dims.depth; ++z) {
+        for (int y = 0; y < m_dims.height; ++y) {
+            for (int x = 0; x < m_dims.width; ++x) {
+                const size_t id = static_cast<size_t>(x) +
+                                  static_cast<size_t>(y) * m_dims.width +
+                                  static_cast<size_t>(z) * m_dims.width * m_dims.height;
+                if (m_voxels[id] != 1) continue;
+
+                Point3i voxel(
+                    x + m_scaledBounds.xmin,
+                    y + m_scaledBounds.ymin,
+                    z + m_scaledBounds.zmin
+                );
+                if (logFile.is_open()) {
+                    logFile << "(" << voxel.x << ", " << voxel.y << ", " << voxel.z << ")\n";
+                }
+                writePointToVoxel(voxel, file);
             }
         }
     }
-#endif
 
     logFile.close();
     file.close();

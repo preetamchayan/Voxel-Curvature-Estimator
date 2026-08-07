@@ -2,7 +2,6 @@
 
 #include "../Helper/GeometryTypes.h"
 #include "../Helper/MeshLoader/MeshLoader.h"
-#include "../Helper/OcTree/OcTree.h"
 #include <vector>
 
 class MeshVoxelizerBaseEnv {
