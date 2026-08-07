@@ -2,7 +2,6 @@
 
 #include "../Helper/GeometryTypes.h"
 #include "../Helper/MeshLoader/MeshLoader.h"
-#include "../Helper/OcTree/OcTree.h"
 #include "MeshVoxelizerBaseEnv.h"
 #include <vector>
 
@@ -17,7 +16,7 @@
 #define PARALLEL_METAL 5   // MacOS-only,   Apple-only,     GPU-only
 
 #ifndef VOXELIZE_MODE
-#define VOXELIZE_MODE PARALLEL_METAL
+#define VOXELIZE_MODE PARALLEL_DIRECTX
 #endif
 
 class MeshVoxelizer {
@@ -26,7 +25,6 @@ private:
     BBox3i m_scaledBounds;
     BBox3d m_unscaledBounds;
     Dimensions3i m_dims;
-    OcTree* m_ocTree;
     MeshVoxelizerBaseEnv* m_baseEnv;
 
 public:
@@ -34,13 +32,9 @@ public:
     ~MeshVoxelizer();
     void voxelize(const MeshLoader& mesh, float scale);
     std::vector<unsigned char>& getVoxels();
-    void getVoxels(std::vector<Point3i>& voxels) const;
     BBox3i getSceneBounds() const;
     Dimensions3i getDimensions() const;
-    OcTree* getOcTree() const;
     void exportVoxelsOBJ(const std::string& filename) const;
     int getVoxelCount() const;
     void getRecommendedScaleRange(int& s_low, int& s_high) const;
-    bool search(Point3i p) const;
-    bool remove(Point3i p) const;
 };

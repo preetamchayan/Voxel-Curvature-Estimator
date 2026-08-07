@@ -8,30 +8,40 @@ void swap(int* a, int* b) {
     *b = temp;
 }
 
-Color hsv2rgb (Color& hsv) {
-    Color rgb;
-	hsv.r /= 360;
-	int i;
-	float aa, bb, cc, f;
-	if (hsv.g == 0) rgb.r = rgb.g = rgb.b = hsv.b;
-	else {
-		if (hsv.r == 1.0) hsv.r == 0;
-		hsv.r *= 6.0;
-		i = std::floor(hsv.r);
-		f = hsv.r-i;
-		aa = hsv.b * (1 - hsv.g);
-		bb = hsv.b * (1 - (hsv.g * f));
-		cc = hsv.b * (1 - (hsv.g * (1 - f)));
-		switch(i) {
-			case 0: rgb.r = hsv.b; rgb.g = cc; rgb.b = aa; break;
-			case 1: rgb.r = bb; rgb.g = hsv.b; rgb.b = aa; break;
-			case 2: rgb.r = aa; rgb.g = hsv.b; rgb.b = cc; break;
-			case 3: rgb.r = aa; rgb.g = bb; rgb.b = hsv.b; break;
-			case 4: rgb.r = cc; rgb.g = aa; rgb.b = hsv.b; break;
-			case 5: rgb.r = hsv.b; rgb.g = aa; rgb.b = bb; break;
-		}
-	}
-	return rgb;
+Color hsv2rgb(const Color& hsv) {
+    Color rgb(0.0f, 0.0f, 0.0f);
+    Color normalizedHsv = hsv;
+
+    normalizedHsv.r /= 360.0f;
+    if (normalizedHsv.r < 0.0f) {
+        normalizedHsv.r -= std::floor(normalizedHsv.r);
+    }
+    if (normalizedHsv.r >= 1.0f) {
+        normalizedHsv.r = std::fmod(normalizedHsv.r, 1.0f);
+    }
+
+    if (normalizedHsv.g == 0.0f) {
+        rgb.r = rgb.g = rgb.b = normalizedHsv.b;
+        return rgb;
+    }
+
+    normalizedHsv.r *= 6.0f;
+    const int i = static_cast<int>(std::floor(normalizedHsv.r));
+    const float f = normalizedHsv.r - i;
+    const float aa = normalizedHsv.b * (1.0f - normalizedHsv.g);
+    const float bb = normalizedHsv.b * (1.0f - (normalizedHsv.g * f));
+    const float cc = normalizedHsv.b * (1.0f - (normalizedHsv.g * (1.0f - f)));
+
+    switch(i) {
+        case 0: rgb.r = normalizedHsv.b; rgb.g = cc;              rgb.b = aa;              break;
+        case 1: rgb.r = bb;              rgb.g = normalizedHsv.b; rgb.b = aa;              break;
+        case 2: rgb.r = aa;              rgb.g = normalizedHsv.b; rgb.b = cc;              break;
+        case 3: rgb.r = aa;              rgb.g = bb;              rgb.b = normalizedHsv.b; break;
+        case 4: rgb.r = cc;              rgb.g = aa;              rgb.b = normalizedHsv.b; break;
+        default: rgb.r = normalizedHsv.b; rgb.g = aa;             rgb.b = bb;              break;
+    }
+
+    return rgb;
 }
 
 void writePointToVoxel(Point3i point, std::ofstream& file) {

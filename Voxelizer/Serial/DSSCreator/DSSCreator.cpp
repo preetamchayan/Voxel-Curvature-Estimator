@@ -53,7 +53,26 @@ std::vector<Point2i> DSSCreator::rasterizeSegment(Point2i p1, Point2i p2) {
     return bresenhamLineDrawing(_p1, _p2, values, flags);
 }
 
-void DSSCreator::voxelizeSegment(Point3i p1, Point3i p2, OcTree* ocTree) {
+void DSSCreator::voxelizeSegment(
+    Point3i p1,
+    Point3i p2,
+    std::vector<unsigned char>& grid,
+    const BBox3i& bounds,
+    const Dimensions3i& dims
+) {
+    auto markVoxel = [&](const Point3i& voxel) {
+        const int x = voxel.x - bounds.xmin;
+        const int y = voxel.y - bounds.ymin;
+        const int z = voxel.z - bounds.zmin;
+        if (x < 0 || x >= dims.width ||
+            y < 0 || y >= dims.height ||
+            z < 0 || z >= dims.depth) {
+            return;
+        }
+        grid[static_cast<size_t>(x) +
+             static_cast<size_t>(y) * dims.width +
+             static_cast<size_t>(z) * dims.width * dims.height] = 1;
+    };
     Point3i absPoint;
     absPoint.x = std::abs(p2.x - p1.x);
     absPoint.y = std::abs(p2.y - p1.y);
@@ -61,7 +80,7 @@ void DSSCreator::voxelizeSegment(Point3i p1, Point3i p2, OcTree* ocTree) {
     int max = std::max({absPoint.x, absPoint.y, absPoint.z});
     // std::cout << "voxelizeSegment: max = " << max << std::endl;
     if (max == 0) {
-        ocTree->insert(p1);
+        markVoxel(p1);
         return;
     }
     std::vector<Point3i> voxels;
@@ -101,7 +120,7 @@ void DSSCreator::voxelizeSegment(Point3i p1, Point3i p2, OcTree* ocTree) {
         for (int i = 0; i < size1; i++) voxels[i].y = pixels[i].x;
     }
     for (const auto& voxel : voxels)
-        ocTree->insert(voxel);
+        markVoxel(voxel);
 }
 
 std::vector<Point2i> DSSCreator::bresenhamLineDrawing(Point2i p1, Point2i p2, Values values, Flags flags) {

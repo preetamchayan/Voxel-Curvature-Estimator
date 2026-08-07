@@ -1,0 +1,28 @@
+#pragma once
+
+#include "../../MeshVoxelizerBaseEnv.h"
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <d3d11.h>
+#include <wrl/client.h>
+#endif
+
+class MeshVoxelizerDirectXEnv : public MeshVoxelizerBaseEnv {
+public:
+    MeshVoxelizerDirectXEnv();
+    ~MeshVoxelizerDirectXEnv();
+    void voxelize(std::vector<unsigned char> &voxels,
+                  const std::vector<Point3i> &vertices,
+                  const std::vector<Face> &faces,
+                  const BBox3i &scaledBounds,
+                  const Dimensions3i &dims) override;
+
+private:
+#ifdef _WIN32
+    Microsoft::WRL::ComPtr<ID3D11Device> m_device;
+    Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_context;
+#endif
+};
