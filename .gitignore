@@ -2,6 +2,7 @@ output/*.obj
 output/*.obj
 output/*.txt
 output/*.mtl
+output/*.bin
 *.obj
 *.pdb
 *.ilk

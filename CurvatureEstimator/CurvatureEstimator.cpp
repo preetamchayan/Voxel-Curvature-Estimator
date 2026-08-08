@@ -182,7 +182,7 @@ void CurvatureEstimator::exportCurvatureOBJ(const std::string& filename) const {
     std::ofstream fp(filename);
     fp << "mtllib curvatureMaterial.mtl\n\n";
 
-        for (int z = 0; z < m_dims.depth; ++z) {
+    for (int z = 0; z < m_dims.depth; ++z) {
         for (int y = 0; y < m_dims.height; ++y) {
             for (int x = 0; x < m_dims.width; ++x) {
                 const size_t id = static_cast<size_t>(x) +
@@ -209,4 +209,5 @@ void CurvatureEstimator::exportCurvatureOBJ(const std::string& filename) const {
             }
         }
     }
+    std::cout << "Exported voxel curvature map to " << filename << std::endl;
 }
