@@ -2,14 +2,21 @@
 
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include <iostream>
 #include <vector>
+
 
 #ifdef _WIN32
 #include <d3dcompiler.h>
 
+// Change this one value to compare DirectX thread-group variants. It controls
+// both the HLSL [numthreads] macro and the Dispatch() group count.
+#define DX_THREADS_PER_GROUP 64
+#define DX_STRINGIFY_IMPL(value) #value
+#define DX_STRINGIFY(value) DX_STRINGIFY_IMPL(value)
+
 namespace {
+
 void checkHr(HRESULT hr, const char* message) {
     if (FAILED(hr)) {
         std::cerr << "DirectX error 0x" << std::hex << static_cast<unsigned long>(hr)
@@ -39,11 +46,11 @@ Microsoft::WRL::ComPtr<ID3D11Buffer> createStructuredBuffer(
 
     D3D11_BUFFER_DESC desc{};
     desc.ByteWidth = elementSize * elementCount;
-    desc.StructureByteStride = elementSize;
-    desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
-    desc.BindFlags = bindFlags;
     desc.Usage = cpuRead ? D3D11_USAGE_STAGING : D3D11_USAGE_DEFAULT;
+    desc.BindFlags = cpuRead ? 0 : bindFlags;
     desc.CPUAccessFlags = cpuRead ? D3D11_CPU_ACCESS_READ : 0;
+    desc.MiscFlags = cpuRead ? 0 : D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    desc.StructureByteStride = cpuRead ? 0 : elementSize;
 
     D3D11_SUBRESOURCE_DATA subresource{};
     subresource.pSysMem = initialData;
@@ -103,6 +110,7 @@ MeshVoxelizerDirectXEnv::MeshVoxelizerDirectXEnv() {
         D3D_FEATURE_LEVEL_11_0
     };
     D3D_FEATURE_LEVEL createdLevel{};
+    const UINT requestedLevelCount = static_cast<UINT>(sizeof(requestedLevels) / sizeof(requestedLevels[0]));
 
     HRESULT hr = D3D11CreateDevice(
         nullptr,
@@ -110,7 +118,7 @@ MeshVoxelizerDirectXEnv::MeshVoxelizerDirectXEnv() {
         nullptr,
         flags,
         requestedLevels,
-        static_cast<UINT>(std::size(requestedLevels)),
+        requestedLevelCount,
         D3D11_SDK_VERSION,
         &m_device,
         &createdLevel,
@@ -124,7 +132,7 @@ MeshVoxelizerDirectXEnv::MeshVoxelizerDirectXEnv() {
             nullptr,
             flags,
             requestedLevels,
-            static_cast<UINT>(std::size(requestedLevels)),
+            requestedLevelCount,
             D3D11_SDK_VERSION,
             &m_device,
             &createdLevel,
@@ -132,15 +140,10 @@ MeshVoxelizerDirectXEnv::MeshVoxelizerDirectXEnv() {
     }
 
     checkHr(hr, "D3D11CreateDevice");
-    std::cout << "DirectX D3D11 device created. Feature level: 0x"
-              << std::hex << createdLevel << std::dec << std::endl;
 #endif
 }
 
-MeshVoxelizerDirectXEnv::~MeshVoxelizerDirectXEnv() {
-
-    std::cout << "Cleaning up DirectX environment..." << std::endl;
-}
+MeshVoxelizerDirectXEnv::~MeshVoxelizerDirectXEnv() = default;
 
 void MeshVoxelizerDirectXEnv::voxelize(
     std::vector<unsigned char> &voxels,
@@ -155,7 +158,6 @@ void MeshVoxelizerDirectXEnv::voxelize(
     std::exit(1);
 #else
     std::cout << "Voxelizing using DirectX..." << std::endl;
-
 
     std::vector<int> flatFaces;
     flatFaces.reserve(faces.size() * 3);
@@ -178,6 +180,7 @@ void MeshVoxelizerDirectXEnv::voxelize(
         std::cerr << "DirectX voxel grid is too large for a D3D11 buffer element count." << std::endl;
         std::exit(1);
     }
+
     const UINT numVoxelWords = static_cast<UINT>((numVoxels + 31) / 32);
     std::vector<uint32_t> zeroVoxelWords(numVoxelWords, 0);
     uint32_t zeroTotal = 0;
@@ -186,6 +189,7 @@ void MeshVoxelizerDirectXEnv::voxelize(
     auto verticesBuffer = createStructuredBuffer(m_device.Get(), sizeof(int), static_cast<UINT>(flatVertices.size()), flatVertices.data(), D3D11_BIND_SHADER_RESOURCE);
     auto voxelsBuffer = createStructuredBuffer(m_device.Get(), sizeof(uint32_t), numVoxelWords, zeroVoxelWords.data(), D3D11_BIND_UNORDERED_ACCESS);
     auto totalBuffer = createStructuredBuffer(m_device.Get(), sizeof(uint32_t), 1, &zeroTotal, D3D11_BIND_UNORDERED_ACCESS);
+
 
     auto facesSRV = createSRV(m_device.Get(), facesBuffer.Get(), static_cast<UINT>(flatFaces.size()));
     auto verticesSRV = createSRV(m_device.Get(), verticesBuffer.Get(), static_cast<UINT>(flatVertices.size()));
@@ -212,7 +216,14 @@ void MeshVoxelizerDirectXEnv::voxelize(
     Microsoft::WRL::ComPtr<ID3D11Buffer> constantBuffer;
     checkHr(m_device->CreateBuffer(&constantDesc, &constantData, &constantBuffer), "ID3D11Device::CreateBuffer constant buffer");
 
+        constexpr UINT threadsPerGroup = DX_THREADS_PER_GROUP;
+    const D3D_SHADER_MACRO shaderMacros[] = {
+        { "THREADS_PER_GROUP", DX_STRINGIFY(DX_THREADS_PER_GROUP) },
+        { nullptr, nullptr }
+    };
+
     UINT compileFlags = D3DCOMPILE_ENABLE_STRICTNESS;
+
 #if defined(_DEBUG)
     compileFlags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
@@ -221,8 +232,9 @@ void MeshVoxelizerDirectXEnv::voxelize(
     Microsoft::WRL::ComPtr<ID3DBlob> errorBlob;
     HRESULT hr = D3DCompileFromFile(
         L"Voxelizer/Parallel/DirectX/MeshVoxelizerKernel.hlsl",
-        nullptr,
+        shaderMacros,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
+
         "main",
         "cs_5_0",
         compileFlags,
@@ -238,46 +250,48 @@ void MeshVoxelizerDirectXEnv::voxelize(
         checkHr(hr, "D3DCompileFromFile MeshVoxelizerKernel.hlsl");
     }
 
-    std::cout << "DX compiled compute-shader bytecode size: "
-          << shaderBlob->GetBufferSize() << " bytes" << std::endl;
-
     Microsoft::WRL::ComPtr<ID3D11ComputeShader> computeShader;
     checkHr(m_device->CreateComputeShader(shaderBlob->GetBufferPointer(), shaderBlob->GetBufferSize(), nullptr, &computeShader),
             "ID3D11Device::CreateComputeShader");
 
     ID3D11ShaderResourceView* srvs[] = { facesSRV.Get(), verticesSRV.Get() };
     ID3D11UnorderedAccessView* uavs[] = { voxelsUAV.Get(), totalUAV.Get() };
+
     ID3D11Buffer* cbuffers[] = { constantBuffer.Get() };
 
     m_context->CSSetShader(computeShader.Get(), nullptr, 0);
     m_context->CSSetShaderResources(0, 2, srvs);
     m_context->CSSetUnorderedAccessViews(0, 2, uavs, nullptr);
+
     m_context->CSSetConstantBuffers(0, 1, cbuffers);
 
-    constexpr UINT localSize = 64;
-    const UINT groupCount = (static_cast<UINT>(faces.size()) + localSize - 1) / localSize;
+    const UINT groupCount = (static_cast<UINT>(faces.size()) + threadsPerGroup - 1) / threadsPerGroup;
+
     m_context->Dispatch(groupCount, 1, 1);
 
     ID3D11ShaderResourceView* nullSrvs[] = { nullptr, nullptr };
     ID3D11UnorderedAccessView* nullUavs[] = { nullptr, nullptr };
+
     ID3D11Buffer* nullCBuffers[] = { nullptr };
     m_context->CSSetShader(nullptr, nullptr, 0);
     m_context->CSSetShaderResources(0, 2, nullSrvs);
     m_context->CSSetUnorderedAccessViews(0, 2, nullUavs, nullptr);
+
     m_context->CSSetConstantBuffers(0, 1, nullCBuffers);
 
     auto voxelReadback = createStructuredBuffer(m_device.Get(), sizeof(uint32_t), numVoxelWords, nullptr, 0, true);
     auto totalReadback = createStructuredBuffer(m_device.Get(), sizeof(uint32_t), 1, nullptr, 0, true);
 
-    m_context->Flush();
     m_context->CopyResource(voxelReadback.Get(), voxelsBuffer.Get());
     m_context->CopyResource(totalReadback.Get(), totalBuffer.Get());
+    m_context->Flush();
 
     D3D11_MAPPED_SUBRESOURCE mapped{};
     checkHr(m_context->Map(voxelReadback.Get(), 0, D3D11_MAP_READ, 0, &mapped), "ID3D11DeviceContext::Map voxel readback");
-    const uint32_t* words = static_cast<const uint32_t*>(mapped.pData);
+        const uint32_t* words = static_cast<const uint32_t*>(mapped.pData);
+    std::vector<uint32_t> voxelWords(words, words + numVoxelWords);
     for (size_t i = 0; i < numVoxels; ++i) {
-        const uint32_t word = words[i >> 5];
+        const uint32_t word = voxelWords[i >> 5];
         voxels[i] = ((word >> (i & 31u)) & 1u) ? 1 : 0;
     }
     m_context->Unmap(voxelReadback.Get(), 0);

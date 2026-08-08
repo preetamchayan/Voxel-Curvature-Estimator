@@ -48,17 +48,17 @@ int main(int argc, char* argv[]) {
     // Export to OBJ
     voxelizer.exportVoxelsOBJ(outputFileVoxel);
 
-    // int curveLength;
-    // std::cout << "Enter curve length for curvature estimation: ";
-    // std::cin >> curveLength;
-    // //Estimate curvature
-    // CurvatureEstimator curvatureEstimator(
-    //     voxelizer.getVoxels(),
-    //     voxelizer.getSceneBounds(),
-    //     voxelizer.getDimensions()
-    // );
-    // curvatureEstimator.estimateCurvature(curveLength);
-    // curvatureEstimator.exportCurvatureOBJ(outputFileCurvature);
+    int curveLength;
+    std::cout << "Enter curve length for curvature estimation: ";
+    std::cin >> curveLength;
+    //Estimate curvature
+    CurvatureEstimator curvatureEstimator(
+        voxelizer.getVoxels(),
+        voxelizer.getSceneBounds(),
+        voxelizer.getDimensions()
+    );
+    curvatureEstimator.estimateCurvature(curveLength);
+    curvatureEstimator.exportCurvatureOBJ(outputFileCurvature);
 
     return 0;
 }
