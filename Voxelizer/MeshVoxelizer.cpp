@@ -3,15 +3,15 @@
 #include <cmath>
 
 // Include only the selected backend header to avoid optional dependencies.
-#if VOXELIZER_MODE == PARALLEL_OPENCL
+#if VOXELIZER == OPENCL
 #include "Parallel/OpenCL/MeshVoxelizerOpenCL.h"
-#elif VOXELIZER_MODE == PARALLEL_VULKAN
+#elif VOXELIZER == VULKAN
 #include "Parallel/Vulkan/MeshVoxelizerVulkan.h"
-#elif VOXELIZER_MODE == PARALLEL_CUDA
+#elif VOXELIZER == CUDA
 #include "Parallel/Cuda/MeshVoxelizerCuda.h"
-#elif VOXELIZER_MODE == PARALLEL_DIRECTX
+#elif VOXELIZER == DIRECTX
 #include "Parallel/DirectX/MeshVoxelizerDirectX.h"
-#elif VOXELIZER_MODE == PARALLEL_METAL
+#elif VOXELIZER == METAL
 #include "Parallel/Metal/MeshVoxelizerMetal.h"
 #else
 #include "Serial/MeshVoxelizerSerial.h"
@@ -108,20 +108,20 @@ void MeshVoxelizer::voxelize(const MeshLoader& mesh, float scale) {
 
     m_voxels.assign(R * C * D, 0);
 
-#if VOXELIZER_MODE == SERIAL
+#if VOXELIZER == SERIAL
     m_base = new MeshVoxelizerSerial();
-#elif VOXELIZER_MODE == PARALLEL_OPENCL
+#elif VOXELIZER == OPENCL
     m_base = new MeshVoxelizerOpenCL();
-#elif VOXELIZER_MODE == PARALLEL_VULKAN
+#elif VOXELIZER == VULKAN
     m_base = new MeshVoxelizerVulkan();
-#elif VOXELIZER_MODE == PARALLEL_CUDA
+#elif VOXELIZER == CUDA
     m_base = new MeshVoxelizerCuda();
-#elif VOXELIZER_MODE == PARALLEL_DIRECTX
+#elif VOXELIZER == DIRECTX
     m_base = new MeshVoxelizerDirectX();
-#elif VOXELIZER_MODE == PARALLEL_METAL
+#elif VOXELIZER == METAL
     m_base = new MeshVoxelizerMetal();
 #else
-    #error "Invalid VOXELIZER_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, PARALLEL_CUDA, PARALLEL_DIRECTX, or PARALLEL_METAL."
+    #error "Invalid VOXELIZER defined. Please define it as SERIAL, OPENCL, VULKAN, CUDA, DIRECTX, or METAL."
 #endif
     if (m_base) {
         m_base->voxelize(m_voxels, intVertices, faces, m_scaledBounds, m_dims);

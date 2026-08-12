@@ -8,15 +8,15 @@
 // OS-neutral     -- Windows / Linux (NOT MacOS due to lack of OpenCL / Vulkan / CUDA support)
 // Vendor-neutral -- NVIDIA / AMD / Intel / Adreno (Qualcomm) / Mali (ARM) (NOT Apple Silicon)
 // Device-neutral -- CPU, GPU, embedded devices
-#define SERIAL 0           // OS-neutral,   Vendor-neutral, CPU-only
-#define PARALLEL_OPENCL 1  // OS-neutral,   Vendor-neutral, Device-neutral
-#define PARALLEL_VULKAN 2  // OS-neutral,   Vendor-neutral, GPU-only
-#define PARALLEL_CUDA 3    // OS-neutral,   NVIDIA-only,    GPU-only
-#define PARALLEL_DIRECTX 4 // Windows-only, Vendor-neutral, GPU-only
-#define PARALLEL_METAL 5   // MacOS-only,   Apple-only,     GPU-only
+#define SERIAL 0    // OS-neutral,   Vendor-neutral, CPU-only
+#define OPENCL 1    // OS-neutral,   Vendor-neutral, Device-neutral
+#define VULKAN 2    // OS-neutral,   Vendor-neutral, GPU-only
+#define CUDA 3      // OS-neutral,   NVIDIA-only,    GPU-only
+#define DIRECTX 4   // Windows-only, Vendor-neutral, GPU-only
+#define METAL 5     // MacOS-only,   Apple-only,     GPU-only
 
-#ifndef VOXELIZER_MODE
-#define VOXELIZER_MODE PARALLEL_DIRECTX
+#ifndef VOXELIZER
+#define VOXELIZER DIRECTX
 #endif
 
 class MeshVoxelizer {
