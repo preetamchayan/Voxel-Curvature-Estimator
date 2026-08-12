@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../../CurvatureEstimatorBaseEnv.h"
+#include "../../CurvatureEstimatorBase.h"
 
-class CurvatureEstimatorCudaEnv : public CurvatureEstimatorBaseEnv {
+class CurvatureEstimatorCuda : public CurvatureEstimatorBase {
 public:
-    CurvatureEstimatorCudaEnv();
-    ~CurvatureEstimatorCudaEnv();
+    CurvatureEstimatorCuda();
+    ~CurvatureEstimatorCuda();
     void estimateCurvature(int curvLength,
                            const std::vector<unsigned char>& voxels,
                            std::vector<int>& curvatures,

@@ -7,9 +7,9 @@
       "request": "launch",
       "program": "${workspaceFolder}\\windowsApp.exe",
       "args": [
-        "assets\\cubes_grid.obj",
-        "output\\cubes_grid_voxelized.obj",
-        "output\\cubes_grid_curvature.obj"
+        "assets\\armadillo.obj",
+        "output\\armadillo_voxelized.obj",
+        "output\\armadillo_curvature.obj"
       ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",

@@ -4,10 +4,10 @@
 #include "../Helper/MeshLoader/MeshLoader.h"
 #include <vector>
 
-class MeshVoxelizerBaseEnv {
+class MeshVoxelizerBase {
 
 public:
-    virtual ~MeshVoxelizerBaseEnv() = default;
+    virtual ~MeshVoxelizerBase() = default;
     virtual void voxelize(std::vector<unsigned char> &voxels,
                           const std::vector<Point3i> &vertices,
                           const std::vector<Face> &faces,

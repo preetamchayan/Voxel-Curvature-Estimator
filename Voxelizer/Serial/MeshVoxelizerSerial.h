@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../MeshVoxelizerBaseEnv.h"
+#include "../MeshVoxelizerBase.h"
 #include "TriangleVoxelizer/TriangleVoxelizer.h"
 
-class MeshVoxelizerSerialEnv : public MeshVoxelizerBaseEnv {
+class MeshVoxelizerSerial : public MeshVoxelizerBase {
 public:
-    MeshVoxelizerSerialEnv() = default;
+    MeshVoxelizerSerial() = default;
     void voxelize(
         std::vector<unsigned char>& voxels,
         const std::vector<Point3i>& vertices,

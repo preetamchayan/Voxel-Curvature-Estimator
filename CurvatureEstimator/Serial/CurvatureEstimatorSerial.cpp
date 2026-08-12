@@ -1,4 +1,4 @@
-#include "CurvatureEstimatorSerialEnv.h"
+#include "CurvatureEstimatorSerial.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -22,16 +22,16 @@ namespace {
     }
 }
 
-CurvatureEstimatorSerialEnv::CurvatureEstimatorSerialEnv(const BBox3i& bounds)
+CurvatureEstimatorSerial::CurvatureEstimatorSerial(const BBox3i& bounds)
     : m_voxels(nullptr), m_bounds(bounds) {}
 
-void CurvatureEstimatorSerialEnv::preprocessVoxels(std::vector<unsigned char>& voxels,
+void CurvatureEstimatorSerial::preprocessVoxels(std::vector<unsigned char>& voxels,
                                                    const Dimensions3i& dims) {
     m_dims = dims;
     computeInnerSpaceAndFrontierVoxels(voxels);
 }
 
-void CurvatureEstimatorSerialEnv::computeInnerSpaceAndFrontierVoxels(
+void CurvatureEstimatorSerial::computeInnerSpaceAndFrontierVoxels(
     std::vector<unsigned char>& voxels) {
     std::cout << "Computing inner space via plane 2\n";
     computeInnerSpaceVoxels(voxels, m_dims.width, m_dims.height, m_dims.depth, 2);
@@ -45,7 +45,7 @@ void CurvatureEstimatorSerialEnv::computeInnerSpaceAndFrontierVoxels(
     computeFrontierVoxels(voxels);
 }
 
-void CurvatureEstimatorSerialEnv::computeInnerSpaceVoxels(
+void CurvatureEstimatorSerial::computeInnerSpaceVoxels(
     std::vector<unsigned char>& voxels,
     int R,
     int C,
@@ -102,7 +102,7 @@ void CurvatureEstimatorSerialEnv::computeInnerSpaceVoxels(
     }
 }
 
-void CurvatureEstimatorSerialEnv::markInteriorVoxels(std::vector<unsigned char>& voxels) {
+void CurvatureEstimatorSerial::markInteriorVoxels(std::vector<unsigned char>& voxels) {
     for (int z = 0; z < m_dims.depth; ++z) {
         for (int y = 0; y < m_dims.height; ++y) {
             for (int x = 0; x < m_dims.width; ++x) {
@@ -119,7 +119,7 @@ void CurvatureEstimatorSerialEnv::markInteriorVoxels(std::vector<unsigned char>&
     }
 }
 
-void CurvatureEstimatorSerialEnv::computeFrontierVoxels(std::vector<unsigned char>& voxels) {
+void CurvatureEstimatorSerial::computeFrontierVoxels(std::vector<unsigned char>& voxels) {
     for (int z = 0; z < m_dims.depth; ++z) {
         for (int y = 0; y < m_dims.height; ++y) {
             for (int x = 0; x < m_dims.width; ++x) {
@@ -139,7 +139,7 @@ void CurvatureEstimatorSerialEnv::computeFrontierVoxels(std::vector<unsigned cha
     }
 }
 
-void CurvatureEstimatorSerialEnv::estimateCurvature(int curveLength,
+void CurvatureEstimatorSerial::estimateCurvature(int curveLength,
                                                     const std::vector<unsigned char>& voxels,
                                                     std::vector<int>& curvatures,
                                                     const Dimensions3i& dims) {
@@ -175,29 +175,29 @@ void CurvatureEstimatorSerialEnv::estimateCurvature(int curveLength,
     }
 }
 
-size_t CurvatureEstimatorSerialEnv::getVoxelID(int x, int y, int z) const {
+size_t CurvatureEstimatorSerial::getVoxelID(int x, int y, int z) const {
     return static_cast<size_t>(x) +
            static_cast<size_t>(y) * m_dims.width +
            static_cast<size_t>(z) * m_dims.width * m_dims.height;
 }
 
-bool CurvatureEstimatorSerialEnv::inGrid(int x, int y, int z) const {
+bool CurvatureEstimatorSerial::inGrid(int x, int y, int z) const {
     return x >= 0 && x < m_dims.width &&
            y >= 0 && y < m_dims.height &&
            z >= 0 && z < m_dims.depth;
 }
 
-bool CurvatureEstimatorSerialEnv::isSurface(const Point3i& voxel) const {
+bool CurvatureEstimatorSerial::isSurface(const Point3i& voxel) const {
     return m_voxels && inGrid(voxel.x, voxel.y, voxel.z) &&
            (*m_voxels)[getVoxelID(voxel.x, voxel.y, voxel.z)] == 1;
 }
 
-bool CurvatureEstimatorSerialEnv::isInterior(const Point3i& voxel) const {
+bool CurvatureEstimatorSerial::isInterior(const Point3i& voxel) const {
     return m_voxels && inGrid(voxel.x, voxel.y, voxel.z) &&
            (*m_voxels)[getVoxelID(voxel.x, voxel.y, voxel.z)] == 2;
 }
 
-int CurvatureEstimatorSerialEnv::computeCurvatureAtVoxel(Point3i voxel) {
+int CurvatureEstimatorSerial::computeCurvatureAtVoxel(Point3i voxel) {
     int maxCurvature = std::numeric_limits<int>::min();
     int minCurvature = std::numeric_limits<int>::max();
     for (int plane = 0; plane < 9; ++plane) {
@@ -212,7 +212,7 @@ int CurvatureEstimatorSerialEnv::computeCurvatureAtVoxel(Point3i voxel) {
     return maxCurvature + minCurvature;
 }
 
-int CurvatureEstimatorSerialEnv::computeCurvatureOfDigitalCurve3D(
+int CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve3D(
     Point3i voxel, int plane
 ) {
     std::vector<Point3i> curve3D(2 * m_curveLength + 1);
@@ -260,7 +260,7 @@ int CurvatureEstimatorSerialEnv::computeCurvatureOfDigitalCurve3D(
     return (curvature == std::numeric_limits<int>::max()) ? -1 : curvature;
 }
 
-bool CurvatureEstimatorSerialEnv::computeCurvatureOfDigitalCurve2D(
+bool CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve2D(
     int plane,
     Point3i voxel,
     std::vector<std::pair<Point3i, uint8_t>>& trailCurve,
@@ -345,7 +345,7 @@ bool CurvatureEstimatorSerialEnv::computeCurvatureOfDigitalCurve2D(
     return true; // Return true if the curvature computation was successful, false otherwise
 }
 
-bool CurvatureEstimatorSerialEnv::findNextLevelVoxels(
+bool CurvatureEstimatorSerial::findNextLevelVoxels(
     int i,
     int plane,
     std::vector<std::pair<Point3i, uint8_t>>& curve,
@@ -373,7 +373,7 @@ bool CurvatureEstimatorSerialEnv::findNextLevelVoxels(
     return true; // Return true if next level voxels are found, false otherwise
 }
 
-void CurvatureEstimatorSerialEnv::getNeighborsInPlane(
+void CurvatureEstimatorSerial::getNeighborsInPlane(
     Point3i voxel, int plane,
     std::vector<std::pair<Point3i, uint8_t>>& neighbors) {
     // Placeholder for the actual implementation of getting neighbors in a specific plane
@@ -689,7 +689,7 @@ void CurvatureEstimatorSerialEnv::getNeighborsInPlane(
 	}
 }
 
-void CurvatureEstimatorSerialEnv::addNeighbor(
+void CurvatureEstimatorSerial::addNeighbor(
     Point3i voxel, Point3i neighbor, int neighborId, int plane,
     std::vector<std::pair<Point3i, uint8_t>>& neighbors) {
     // Add the neighbor voxel and its corresponding chain code to the neighbors vector
@@ -701,7 +701,7 @@ void CurvatureEstimatorSerialEnv::addNeighbor(
     }
 }
 
-uint8_t CurvatureEstimatorSerialEnv::getChainCode(Point2i neighbor, Point2i voxel) {
+uint8_t CurvatureEstimatorSerial::getChainCode(Point2i neighbor, Point2i voxel) {
     // Calculate the chain code based on the relative position of the neighbor to the voxel
     Point2i dir = neighbor - voxel;
     if(dir.x == 1 && dir.y == 0) return 0; // Right

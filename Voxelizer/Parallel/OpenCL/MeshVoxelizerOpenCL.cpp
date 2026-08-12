@@ -1,4 +1,4 @@
-#include "MeshVoxelizerOclEnv.h"
+#include "MeshVoxelizerOpenCL.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -44,7 +44,7 @@ const char* deviceTypeToString(cl_device_type type) {
 }
 }
 
-MeshVoxelizerOclEnv::MeshVoxelizerOclEnv()
+MeshVoxelizerOpenCL::MeshVoxelizerOpenCL()
     : m_context(nullptr),
       m_queue(nullptr),
       m_device(nullptr),
@@ -158,7 +158,7 @@ MeshVoxelizerOclEnv::MeshVoxelizerOclEnv()
     checkOpenCLError(err, "clCreateKernel");
 }
 
-MeshVoxelizerOclEnv::~MeshVoxelizerOclEnv()
+MeshVoxelizerOpenCL::~MeshVoxelizerOpenCL()
 {
     // Clean up OpenCL resources here
     std::cout << "Cleaning up OpenCL environment..." << std::endl;
@@ -192,7 +192,7 @@ MeshVoxelizerOclEnv::~MeshVoxelizerOclEnv()
     }
 }
 
-std::string MeshVoxelizerOclEnv::loadKernelSource(const std::string &path)
+std::string MeshVoxelizerOpenCL::loadKernelSource(const std::string &path)
 {
     std::ifstream file(path);
     if (!file.is_open())
@@ -205,7 +205,7 @@ std::string MeshVoxelizerOclEnv::loadKernelSource(const std::string &path)
     return content.str();
 }
 
-void MeshVoxelizerOclEnv::checkOpenCLError(cl_int error, const char *message)
+void MeshVoxelizerOpenCL::checkOpenCLError(cl_int error, const char *message)
 {
     if (error != CL_SUCCESS)
     {
@@ -214,7 +214,7 @@ void MeshVoxelizerOclEnv::checkOpenCLError(cl_int error, const char *message)
     }
 }
 
-void MeshVoxelizerOclEnv::voxelize(
+void MeshVoxelizerOpenCL::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,

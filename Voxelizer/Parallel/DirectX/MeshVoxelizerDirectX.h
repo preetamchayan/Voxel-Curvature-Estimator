@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../MeshVoxelizerBaseEnv.h"
+#include "../../MeshVoxelizerBase.h"
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -10,10 +10,10 @@
 #include <wrl/client.h>
 #endif
 
-class MeshVoxelizerDirectXEnv : public MeshVoxelizerBaseEnv {
+class MeshVoxelizerDirectX : public MeshVoxelizerBase {
 public:
-    MeshVoxelizerDirectXEnv();
-    ~MeshVoxelizerDirectXEnv();
+    MeshVoxelizerDirectX();
+    ~MeshVoxelizerDirectX();
     void voxelize(std::vector<unsigned char> &voxels,
                   const std::vector<Point3i> &vertices,
                   const std::vector<Face> &faces,

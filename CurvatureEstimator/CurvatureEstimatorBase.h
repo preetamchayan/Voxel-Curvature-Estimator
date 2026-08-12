@@ -3,9 +3,9 @@
 #include "../Helper/GeometryTypes.h"
 #include <vector>
 
-class CurvatureEstimatorBaseEnv {
+class CurvatureEstimatorBase {
 public:
-    virtual ~CurvatureEstimatorBaseEnv() = default;
+    virtual ~CurvatureEstimatorBase() = default;
 
     // Converts a raw voxel shell grid into the curvature-ready grid:
     // 0 = empty, 1 = surface/frontier voxel, 2 = interior voxel.

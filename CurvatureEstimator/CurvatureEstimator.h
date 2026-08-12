@@ -3,7 +3,7 @@
 // OS-neutral     -- Windows / Linux (NOT MacOS due to lack of OpenCL / Vulkan / CUDA support)
 // Vendor-neutral -- NVIDIA / AMD / Intel / Adreno (Qualcomm) / Mali (ARM) (NOT Apple Silicon)
 // Device-neutral -- CPU, GPU, embedded devices
-#define SERIAL 0
+#define SERIAL 0           // OS-neutral,   Vendro-neutral, CPU-only
 #define PARALLEL_OPENCL 1  // OS-neutral,   Vendor-neutral, Device-neutral
 #define PARALLEL_VULKAN 2  // OS-neutral,   Vendor-neutral, GPU-only
 #define PARALLEL_CUDA 3    // OS-neutral,   NVIDIA-only,    GPU-only
@@ -15,7 +15,7 @@
 #endif
 
 #include "../Helper/GeometryTypes.h"
-#include "CurvatureEstimatorBaseEnv.h"
+#include "CurvatureEstimatorBase.h"
 
 #include <vector>
 #include <string>
@@ -39,7 +39,7 @@ private:
     BBox3i m_bounds;
     Dimensions3i m_dims;
     int m_curveLength;
-    CurvatureEstimatorBaseEnv* m_baseEnv;
+    CurvatureEstimatorBase* m_base;
     std::vector<Color> m_colors;
 private:
     void averageCurvature();

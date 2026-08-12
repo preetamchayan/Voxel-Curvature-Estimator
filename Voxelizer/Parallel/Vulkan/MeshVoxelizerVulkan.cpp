@@ -1,4 +1,4 @@
-#include "MeshVoxelizerVulkanEnv.h"
+#include "MeshVoxelizerVulkan.h"
 #include <iostream>
 #include <vector>
 #include <cstdlib>
@@ -13,7 +13,7 @@ static void checkVk(VkResult res, const char* msg) {
     }
 }
 
-MeshVoxelizerVulkanEnv::MeshVoxelizerVulkanEnv()
+MeshVoxelizerVulkan::MeshVoxelizerVulkan()
 {
     std::cout << "Initializing Vulkan environment..." << std::endl;
     createInstance();
@@ -22,13 +22,13 @@ MeshVoxelizerVulkanEnv::MeshVoxelizerVulkanEnv()
     createCommandPoolAndBuffer();
 }
 
-MeshVoxelizerVulkanEnv::~MeshVoxelizerVulkanEnv()
+MeshVoxelizerVulkan::~MeshVoxelizerVulkan()
 {
     std::cout << "Cleaning up Vulkan environment..." << std::endl;
     cleanup();
 }
 
-uint32_t MeshVoxelizerVulkanEnv::findComputeQueueFamily(VkPhysicalDevice device)
+uint32_t MeshVoxelizerVulkan::findComputeQueueFamily(VkPhysicalDevice device)
 {
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
@@ -45,7 +45,7 @@ uint32_t MeshVoxelizerVulkanEnv::findComputeQueueFamily(VkPhysicalDevice device)
     return 0xFFFFFFFFu;
 }
 
-uint32_t MeshVoxelizerVulkanEnv::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
+uint32_t MeshVoxelizerVulkan::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties)
 {
     VkPhysicalDeviceMemoryProperties memProperties;
     vkGetPhysicalDeviceMemoryProperties(m_physicalDevice, &memProperties);
@@ -60,7 +60,7 @@ uint32_t MeshVoxelizerVulkanEnv::findMemoryType(uint32_t typeFilter, VkMemoryPro
     std::exit(1);
 }
 
-void MeshVoxelizerVulkanEnv::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory)
+void MeshVoxelizerVulkan::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties, VkBuffer &buffer, VkDeviceMemory &bufferMemory)
 {
     VkBufferCreateInfo bufferInfo{};
     bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -82,7 +82,7 @@ void MeshVoxelizerVulkanEnv::createBuffer(VkDeviceSize size, VkBufferUsageFlags 
     checkVk(vkBindBufferMemory(m_device, buffer, bufferMemory, 0), "vkBindBufferMemory");
 }
 
-std::vector<char> MeshVoxelizerVulkanEnv::readFile(const std::string &filename)
+std::vector<char> MeshVoxelizerVulkan::readFile(const std::string &filename)
 {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);
     if (!file.is_open()) {
@@ -98,7 +98,7 @@ std::vector<char> MeshVoxelizerVulkanEnv::readFile(const std::string &filename)
     return buffer;
 }
 
-void MeshVoxelizerVulkanEnv::createDescriptorSetLayout()
+void MeshVoxelizerVulkan::createDescriptorSetLayout()
 {
     VkDescriptorSetLayoutBinding bindings[4];
     for (uint32_t i = 0; i < 4; ++i) {
@@ -132,7 +132,7 @@ void MeshVoxelizerVulkanEnv::createDescriptorSetLayout()
     checkVk(vkCreatePipelineLayout(m_device, &pipelineLayoutInfo, nullptr, &m_pipelineLayout), "vkCreatePipelineLayout");
 }
 
-void MeshVoxelizerVulkanEnv::createDescriptorPoolAndSet()
+void MeshVoxelizerVulkan::createDescriptorPoolAndSet()
 {
     VkDescriptorPoolSize poolSize{};
     poolSize.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -210,7 +210,7 @@ void MeshVoxelizerVulkanEnv::createDescriptorPoolAndSet()
     vkUpdateDescriptorSets(m_device, 4, descriptorWrites, 0, nullptr);
 }
 
-void MeshVoxelizerVulkanEnv::createComputePipeline(const std::string &spvPath)
+void MeshVoxelizerVulkan::createComputePipeline(const std::string &spvPath)
 {
     auto code = readFile(spvPath);
     if (code.empty()) {
@@ -246,7 +246,7 @@ void MeshVoxelizerVulkanEnv::createComputePipeline(const std::string &spvPath)
     vkDestroyShaderModule(m_device, shaderModule, nullptr);
 }
 
-void MeshVoxelizerVulkanEnv::destroyBuffers()
+void MeshVoxelizerVulkan::destroyBuffers()
 {
     if (m_facesBuffer != VK_NULL_HANDLE) {
         vkDestroyBuffer(m_device, m_facesBuffer, nullptr);
@@ -282,7 +282,7 @@ void MeshVoxelizerVulkanEnv::destroyBuffers()
     }
 }
 
-void MeshVoxelizerVulkanEnv::createInstance()
+void MeshVoxelizerVulkan::createInstance()
 {
     VkApplicationInfo appInfo{};
     appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -300,7 +300,7 @@ void MeshVoxelizerVulkanEnv::createInstance()
     checkVk(res, "vkCreateInstance");
 }
 
-void MeshVoxelizerVulkanEnv::pickPhysicalDevice()
+void MeshVoxelizerVulkan::pickPhysicalDevice()
 {
     uint32_t deviceCount = 0;
     checkVk(vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr), "vkEnumeratePhysicalDevices");
@@ -325,7 +325,7 @@ void MeshVoxelizerVulkanEnv::pickPhysicalDevice()
     }
 }
 
-void MeshVoxelizerVulkanEnv::createLogicalDevice()
+void MeshVoxelizerVulkan::createLogicalDevice()
 {
     float priority = 1.0f;
     VkDeviceQueueCreateInfo queueCreateInfo{};
@@ -387,7 +387,7 @@ void MeshVoxelizerVulkanEnv::createLogicalDevice()
     vkGetDeviceQueue(m_device, m_computeQueueFamilyIndex, 0, &m_computeQueue);
 }
 
-void MeshVoxelizerVulkanEnv::createCommandPoolAndBuffer()
+void MeshVoxelizerVulkan::createCommandPoolAndBuffer()
 {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
@@ -405,7 +405,7 @@ void MeshVoxelizerVulkanEnv::createCommandPoolAndBuffer()
     checkVk(vkAllocateCommandBuffers(m_device, &allocInfo, &m_commandBuffer), "vkAllocateCommandBuffers");
 }
 
-void MeshVoxelizerVulkanEnv::cleanup()
+void MeshVoxelizerVulkan::cleanup()
 {
     if (m_device != VK_NULL_HANDLE) {
         vkDeviceWaitIdle(m_device);
@@ -445,7 +445,7 @@ void MeshVoxelizerVulkanEnv::cleanup()
     }
 }
 
-void MeshVoxelizerVulkanEnv::voxelize(
+void MeshVoxelizerVulkan::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,

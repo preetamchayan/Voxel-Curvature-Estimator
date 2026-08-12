@@ -1,15 +1,15 @@
 #pragma once
 
 #include "../../Helper/GeometryTypes.h"
-#include "../CurvatureEstimatorBaseEnv.h"
+#include "../CurvatureEstimatorBase.h"
 #include <vector>
 #include <array>
 #include <cmath>
 #include <limits>
 
-class CurvatureEstimatorSerialEnv : public CurvatureEstimatorBaseEnv {
+class CurvatureEstimatorSerial : public CurvatureEstimatorBase {
 public:
-    explicit CurvatureEstimatorSerialEnv(const BBox3i& bounds);
+    explicit CurvatureEstimatorSerial(const BBox3i& bounds);
     void preprocessVoxels(std::vector<unsigned char>& voxels,
                           const Dimensions3i& dims) override;
     void estimateCurvature(int curveLength,

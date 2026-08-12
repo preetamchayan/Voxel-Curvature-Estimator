@@ -2,12 +2,12 @@
 
 #include <string>
 #include <vector>
-#include "../../MeshVoxelizerBaseEnv.h"
+#include "../../MeshVoxelizerBase.h"
 
-class MeshVoxelizerMetalEnv : public MeshVoxelizerBaseEnv {
+class MeshVoxelizerMetal : public MeshVoxelizerBase {
 public:
-    MeshVoxelizerMetalEnv();
-    ~MeshVoxelizerMetalEnv();
+    MeshVoxelizerMetal();
+    ~MeshVoxelizerMetal();
     void voxelize(
         std::vector<unsigned char> &voxels,
         const std::vector<Point3i> &vertices,

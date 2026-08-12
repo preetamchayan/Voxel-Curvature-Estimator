@@ -1,18 +1,18 @@
 #include "CurvatureEstimator.h"
 
-// Include only the selected parallel environment header to avoid optional dependency
+// Include only the selected backend header to avoid optional dependencies.
 #if CURVATURE_ESTIMATOR_MODE == PARALLEL_OPENCL
-#include "Parallel/OpenCL/CurvatureEstimatorOclEnv.h"
+#include "Parallel/OpenCL/CurvatureEstimatorOpenCL.h"
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_VULKAN
-#include "Parallel/Vulkan/CurvatureEstimatorVulkanEnv.h"
+#include "Parallel/Vulkan/CurvatureEstimatorVulkan.h"
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_CUDA
-#include "Parallel/Cuda/CurvatureEstimatorCudaEnv.h"
+#include "Parallel/Cuda/CurvatureEstimatorCuda.h"
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_DIRECTX
-#include "Parallel/DirectX/CurvatureEstimatorDirectXEnv.h"
+#include "Parallel/DirectX/CurvatureEstimatorDirectX.h"
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_METAL
-#include "Parallel/Metal/CurvatureEstimatorMetalEnv.h"
+#include "Parallel/Metal/CurvatureEstimatorMetal.h"
 #else
-#include "Serial/CurvatureEstimatorSerialEnv.h"
+#include "Serial/CurvatureEstimatorSerial.h"
 #endif
 
 #include "../Helper/HelperFunctions.h"
@@ -29,35 +29,35 @@ CurvatureEstimator::CurvatureEstimator(
     std::vector<unsigned char>& voxels,
     const BBox3i& bounds,
     const Dimensions3i& dims)
-    : m_voxels(voxels), m_bounds(bounds), m_dims(dims), m_baseEnv(nullptr) {
+    : m_voxels(voxels), m_bounds(bounds), m_dims(dims), m_base(nullptr) {
     const size_t voxelGridSize = static_cast<size_t>(dims.width) * dims.height * dims.depth;
     assert(m_voxels.size() == voxelGridSize);
 
 #if CURVATURE_ESTIMATOR_MODE == SERIAL
-    m_baseEnv = new CurvatureEstimatorSerialEnv(m_bounds);
+    m_base = new CurvatureEstimatorSerial(m_bounds);
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_OPENCL
-    m_baseEnv = new CurvatureEstimatorOclEnv();
+    m_base = new CurvatureEstimatorOpenCL();
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_VULKAN
-    m_baseEnv = new CurvatureEstimatorVulkanEnv();
+    m_base = new CurvatureEstimatorVulkan();
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_CUDA
-    m_baseEnv = new CurvatureEstimatorCudaEnv();
+    m_base = new CurvatureEstimatorCuda();
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_DIRECTX
-    m_baseEnv = new CurvatureEstimatorDirectXEnv();
+    m_base = new CurvatureEstimatorDirectX();
 #elif CURVATURE_ESTIMATOR_MODE == PARALLEL_METAL
-    m_baseEnv = new CurvatureEstimatorMetalEnv();
+    m_base = new CurvatureEstimatorMetal();
 #else
     #error "Invalid CURVATURE_ESTIMATOR_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, PARALLEL_CUDA, PARALLEL_DIRECTX or PARALLEL_METAL." 
 #endif
 
-    if (m_baseEnv) {
-        m_baseEnv->preprocessVoxels(m_voxels, m_dims);
+    if (m_base) {
+        m_base->preprocessVoxels(m_voxels, m_dims);
     }
 }
 
 CurvatureEstimator::~CurvatureEstimator() {
-    if (m_baseEnv) {
-        delete m_baseEnv;
-        m_baseEnv = nullptr;
+    if (m_base) {
+        delete m_base;
+        m_base = nullptr;
     }
 }
 
@@ -65,9 +65,9 @@ void CurvatureEstimator::estimateCurvature(int curveLength) {
     m_curveLength = curveLength;
     m_curvatures.clear();
 
-    if (m_baseEnv) {
+    if (m_base) {
         m_curvatures.assign(m_voxels.size(), std::numeric_limits<int>::max());
-        m_baseEnv->estimateCurvature(curveLength, m_voxels, m_curvatures, m_dims);
+        m_base->estimateCurvature(curveLength, m_voxels, m_curvatures, m_dims);
         assert(m_voxels.size() == m_curvatures.size());
         averageCurvature();
     }

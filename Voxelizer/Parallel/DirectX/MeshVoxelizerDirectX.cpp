@@ -1,4 +1,4 @@
-#include "MeshVoxelizerDirectXEnv.h"
+#include "MeshVoxelizerDirectX.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -95,7 +95,7 @@ Microsoft::WRL::ComPtr<ID3D11UnorderedAccessView> createBufferUAV(
 }
 #endif
 
-MeshVoxelizerDirectXEnv::MeshVoxelizerDirectXEnv() {
+MeshVoxelizerDirectX::MeshVoxelizerDirectX() {
 
     std::cout << "Initializing DirectX environment..." << std::endl;
 
@@ -143,9 +143,9 @@ MeshVoxelizerDirectXEnv::MeshVoxelizerDirectXEnv() {
 #endif
 }
 
-MeshVoxelizerDirectXEnv::~MeshVoxelizerDirectXEnv() = default;
+MeshVoxelizerDirectX::~MeshVoxelizerDirectX() = default;
 
-void MeshVoxelizerDirectXEnv::voxelize(
+void MeshVoxelizerDirectX::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,
