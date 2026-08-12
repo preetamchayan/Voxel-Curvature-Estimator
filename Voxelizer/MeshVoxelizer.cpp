@@ -2,19 +2,19 @@
 #include "../Helper/HelperFunctions.h"
 #include <cmath>
 
-// Include only the selected parallel environment header to avoid optional dependency
-#if VOXELIZE_MODE == PARALLEL_OPENCL
-#include "Parallel/OpenCL/MeshVoxelizerOclEnv.h"
-#elif VOXELIZE_MODE == PARALLEL_VULKAN
-#include "Parallel/Vulkan/MeshVoxelizerVulkanEnv.h"
-#elif VOXELIZE_MODE == PARALLEL_CUDA
-#include "Parallel/Cuda/MeshVoxelizerCudaEnv.h"
-#elif VOXELIZE_MODE == PARALLEL_DIRECTX
-#include "Parallel/DirectX/MeshVoxelizerDirectXEnv.h"
-#elif VOXELIZE_MODE == PARALLEL_METAL
-#include "Parallel/Metal/MeshVoxelizerMetalEnv.h"
+// Include only the selected backend header to avoid optional dependencies.
+#if VOXELIZER_MODE == PARALLEL_OPENCL
+#include "Parallel/OpenCL/MeshVoxelizerOpenCL.h"
+#elif VOXELIZER_MODE == PARALLEL_VULKAN
+#include "Parallel/Vulkan/MeshVoxelizerVulkan.h"
+#elif VOXELIZER_MODE == PARALLEL_CUDA
+#include "Parallel/Cuda/MeshVoxelizerCuda.h"
+#elif VOXELIZER_MODE == PARALLEL_DIRECTX
+#include "Parallel/DirectX/MeshVoxelizerDirectX.h"
+#elif VOXELIZER_MODE == PARALLEL_METAL
+#include "Parallel/Metal/MeshVoxelizerMetal.h"
 #else
-#include "Serial/MeshVoxelizerSerialEnv.h"
+#include "Serial/MeshVoxelizerSerial.h"
 #endif
 #include <algorithm>
 #include <climits>
@@ -27,12 +27,12 @@
 int maxSize = INT_MIN;
 
 MeshVoxelizer::MeshVoxelizer(const BBox3d& bounds) : m_unscaledBounds(bounds) {
-    m_baseEnv = nullptr;
+    m_base = nullptr;
 }
 
 MeshVoxelizer::~MeshVoxelizer() {
-    if (m_baseEnv) {
-        delete m_baseEnv;
+    if (m_base) {
+        delete m_base;
     }
 }
 
@@ -108,23 +108,23 @@ void MeshVoxelizer::voxelize(const MeshLoader& mesh, float scale) {
 
     m_voxels.assign(R * C * D, 0);
 
-#if VOXELIZE_MODE == SERIAL
-    m_baseEnv = new MeshVoxelizerSerialEnv();
-#elif VOXELIZE_MODE == PARALLEL_OPENCL
-    m_baseEnv = new MeshVoxelizerOclEnv();
-#elif VOXELIZE_MODE == PARALLEL_VULKAN
-    m_baseEnv = new MeshVoxelizerVulkanEnv();
-#elif VOXELIZE_MODE == PARALLEL_CUDA
-    m_baseEnv = new MeshVoxelizerCudaEnv();
-#elif VOXELIZE_MODE == PARALLEL_DIRECTX
-    m_baseEnv = new MeshVoxelizerDirectXEnv();
-#elif VOXELIZE_MODE == PARALLEL_METAL
-    m_baseEnv = new MeshVoxelizerMetalEnv();
+#if VOXELIZER_MODE == SERIAL
+    m_base = new MeshVoxelizerSerial();
+#elif VOXELIZER_MODE == PARALLEL_OPENCL
+    m_base = new MeshVoxelizerOpenCL();
+#elif VOXELIZER_MODE == PARALLEL_VULKAN
+    m_base = new MeshVoxelizerVulkan();
+#elif VOXELIZER_MODE == PARALLEL_CUDA
+    m_base = new MeshVoxelizerCuda();
+#elif VOXELIZER_MODE == PARALLEL_DIRECTX
+    m_base = new MeshVoxelizerDirectX();
+#elif VOXELIZER_MODE == PARALLEL_METAL
+    m_base = new MeshVoxelizerMetal();
 #else
-    #error "Invalid VOXELIZE_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, PARALLEL_CUDA  or PARALLEL_DIRECTX." 
+    #error "Invalid VOXELIZER_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, PARALLEL_CUDA, PARALLEL_DIRECTX, or PARALLEL_METAL."
 #endif
-    if (m_baseEnv) {
-        m_baseEnv->voxelize(m_voxels, intVertices, faces, m_scaledBounds, m_dims);
+    if (m_base) {
+        m_base->voxelize(m_voxels, intVertices, faces, m_scaledBounds, m_dims);
     }
 }
 

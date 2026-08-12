@@ -1,15 +1,15 @@
 #pragma once
 
 #include <vulkan/vulkan.h>
-#include "../../MeshVoxelizerBaseEnv.h"
+#include "../../MeshVoxelizerBase.h"
 #include <cstdint>
 #include <vector>
 #include <string>
 
-class MeshVoxelizerVulkanEnv : public MeshVoxelizerBaseEnv {
+class MeshVoxelizerVulkan : public MeshVoxelizerBase {
 public:
-    MeshVoxelizerVulkanEnv();
-    ~MeshVoxelizerVulkanEnv();
+    MeshVoxelizerVulkan();
+    ~MeshVoxelizerVulkan();
     void voxelize(
         std::vector<unsigned char> &voxels,
         const std::vector<Point3i> &vertices,

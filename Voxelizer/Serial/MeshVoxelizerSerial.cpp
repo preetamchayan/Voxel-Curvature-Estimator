@@ -1,8 +1,8 @@
-#include "MeshVoxelizerSerialEnv.h"
+#include "MeshVoxelizerSerial.h"
 #include <iostream>
 #include <cassert>
 
-void MeshVoxelizerSerialEnv::voxelize(
+void MeshVoxelizerSerial::voxelize(
     std::vector<unsigned char>& voxels,
     const std::vector<Point3i>& vertices,
     const std::vector<Face>& faces,

@@ -1,16 +1,16 @@
-#include "CurvatureEstimatorDirectXEnv.h"
+#include "CurvatureEstimatorDirectX.h"
 
 #include <iostream>
 
-CurvatureEstimatorDirectXEnv::CurvatureEstimatorDirectXEnv() {
+CurvatureEstimatorDirectX::CurvatureEstimatorDirectX() {
     std::cout << "Initializing DirectX curvature environment..." << std::endl;
 }
 
-CurvatureEstimatorDirectXEnv::~CurvatureEstimatorDirectXEnv() {
+CurvatureEstimatorDirectX::~CurvatureEstimatorDirectX() {
     std::cout << "Cleaning up DirectX curvature environment..." << std::endl;
 }
 
-void CurvatureEstimatorDirectXEnv::estimateCurvature(
+void CurvatureEstimatorDirectX::estimateCurvature(
     int curvLength,
     const std::vector<unsigned char>& voxels,
     std::vector<int>& curvatures,

@@ -1,16 +1,16 @@
 #import <Metal/Metal.h>
-#include "MeshVoxelizerMetalEnv.h"
+#include "MeshVoxelizerMetal.h"
 #include "../../../Helper/GeometryTypes.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
 
-MeshVoxelizerMetalEnv::MeshVoxelizerMetalEnv() {
+MeshVoxelizerMetal::MeshVoxelizerMetal() {
     std::cout << "Initializing Metal environment..." << std::endl;
     createMetalObjects();
 }
 
-MeshVoxelizerMetalEnv::~MeshVoxelizerMetalEnv() {
+MeshVoxelizerMetal::~MeshVoxelizerMetal() {
     std::cout << "Cleaning up Metal environment..." << std::endl;
     // Release Metal objects
     if (m_device) {
@@ -60,7 +60,7 @@ MeshVoxelizerMetalEnv::~MeshVoxelizerMetalEnv() {
     }
 }
 
-void MeshVoxelizerMetalEnv::createMetalObjects() {
+void MeshVoxelizerMetal::createMetalObjects() {
     // Get default Metal device
     id<MTLDevice> device = MTLCreateSystemDefaultDevice();
     checkMetalError(device != nil, "Failed to get Metal device");
@@ -72,7 +72,7 @@ void MeshVoxelizerMetalEnv::createMetalObjects() {
     m_commandQueue = (void*)commandQueue;
 }
 
-void MeshVoxelizerMetalEnv::createBuffers(size_t faceCount, size_t vertexCount, size_t voxelCount) {
+void MeshVoxelizerMetal::createBuffers(size_t faceCount, size_t vertexCount, size_t voxelCount) {
     id<MTLDevice> device = (id<MTLDevice>)m_device;
     
     // Calculate buffer sizes
@@ -103,7 +103,7 @@ void MeshVoxelizerMetalEnv::createBuffers(size_t faceCount, size_t vertexCount, 
     m_paramsBuffer = (void*)paramsBuffer;
 }
 
-void MeshVoxelizerMetalEnv::createComputePipeline(const std::string& functionName) {
+void MeshVoxelizerMetal::createComputePipeline(const std::string& functionName) {
     id<MTLDevice> device = (id<MTLDevice>)m_device;
     
     // Load shader source
@@ -150,7 +150,7 @@ void MeshVoxelizerMetalEnv::createComputePipeline(const std::string& functionNam
     m_pipelineState = (void*)pipelineState;
 }
 
-std::string MeshVoxelizerMetalEnv::loadShaderSource(const std::string& path) {
+std::string MeshVoxelizerMetal::loadShaderSource(const std::string& path) {
     // Read the file (try given path, source dir, and project-relative locations)
     std::ifstream file(path);
     std::string srcFile = __FILE__;
@@ -201,13 +201,13 @@ std::string MeshVoxelizerMetalEnv::loadShaderSource(const std::string& path) {
     return out.str();
 }
 
-void MeshVoxelizerMetalEnv::checkMetalError(bool success, const char* message) {
+void MeshVoxelizerMetal::checkMetalError(bool success, const char* message) {
     if (!success) {
         std::cerr << "Metal Error: " << message << std::endl;
     }
 }
 
-void MeshVoxelizerMetalEnv::voxelize(
+void MeshVoxelizerMetal::voxelize(
     std::vector<unsigned char> &voxels,
     const std::vector<Point3i> &vertices,
     const std::vector<Face> &faces,
