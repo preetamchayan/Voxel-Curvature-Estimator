@@ -1,15 +1,15 @@
 #include "CurvatureEstimator.h"
 
 // Include only the selected backend header to avoid optional dependencies.
-#if CURVATURE_ESTIMATOR_MODE == PARALLEL_OPENCL
+#if CURVATURE_ESTIMATOR == OPENCL
 #include "Parallel/OpenCL/CurvatureEstimatorOpenCL.h"
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_VULKAN
+#elif CURVATURE_ESTIMATOR == VULKAN
 #include "Parallel/Vulkan/CurvatureEstimatorVulkan.h"
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_CUDA
+#elif CURVATURE_ESTIMATOR == CUDA
 #include "Parallel/Cuda/CurvatureEstimatorCuda.h"
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_DIRECTX
+#elif CURVATURE_ESTIMATOR == DIRECTX
 #include "Parallel/DirectX/CurvatureEstimatorDirectX.h"
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_METAL
+#elif CURVATURE_ESTIMATOR == METAL
 #include "Parallel/Metal/CurvatureEstimatorMetal.h"
 #else
 #include "Serial/CurvatureEstimatorSerial.h"
@@ -33,20 +33,20 @@ CurvatureEstimator::CurvatureEstimator(
     const size_t voxelGridSize = static_cast<size_t>(dims.width) * dims.height * dims.depth;
     assert(m_voxels.size() == voxelGridSize);
 
-#if CURVATURE_ESTIMATOR_MODE == SERIAL
+#if CURVATURE_ESTIMATOR == SERIAL
     m_base = new CurvatureEstimatorSerial(m_bounds);
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_OPENCL
+#elif CURVATURE_ESTIMATOR == OPENCL
     m_base = new CurvatureEstimatorOpenCL();
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_VULKAN
+#elif CURVATURE_ESTIMATOR == VULKAN
     m_base = new CurvatureEstimatorVulkan();
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_CUDA
+#elif CURVATURE_ESTIMATOR == CUDA
     m_base = new CurvatureEstimatorCuda();
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_DIRECTX
+#elif CURVATURE_ESTIMATOR == DIRECTX
     m_base = new CurvatureEstimatorDirectX();
-#elif CURVATURE_ESTIMATOR_MODE == PARALLEL_METAL
+#elif CURVATURE_ESTIMATOR == METAL
     m_base = new CurvatureEstimatorMetal();
 #else
-    #error "Invalid CURVATURE_ESTIMATOR_MODE defined. Please define it as SERIAL, PARALLEL_OPENCL, PARALLEL_VULKAN, PARALLEL_CUDA, PARALLEL_DIRECTX or PARALLEL_METAL." 
+    #error "Invalid CURVATURE_ESTIMATOR defined. Please define it as SERIAL, OPENCL, VULKAN, CUDA, DIRECTX, or METAL."
 #endif
 
     if (m_base) {
