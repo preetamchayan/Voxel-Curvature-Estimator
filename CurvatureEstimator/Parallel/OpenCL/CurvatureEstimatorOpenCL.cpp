@@ -12,6 +12,7 @@
 
 namespace {
 constexpr int kMaxOpenCLCurveLength = 32;
+constexpr size_t kCurvatureWorkGroupSize = 384;
 
 std::string getPlatformInfoString(cl_platform_id platform, cl_platform_info paramName) {
     size_t size = 0;
@@ -318,19 +319,25 @@ void CurvatureEstimatorOpenCL::estimateCurvature(int curvLength,
             &err);
         checkOpenCLError(err, "clCreateBuffer curvature surface voxel IDs");
 
+        const int surfaceVoxelCount = static_cast<int>(surfaceVoxelIds.size());
         int width = dims.width;
         int height = dims.height;
         int depth = dims.depth;
         checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 0, sizeof(cl_mem), &voxelsBuffer), "clSetKernelArg curvature voxels");
         checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 1, sizeof(cl_mem), &curvaturesBuffer), "clSetKernelArg curvature output");
         checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 2, sizeof(cl_mem), &surfaceVoxelIdsBuffer), "clSetKernelArg curvature surface voxel IDs");
-        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 3, sizeof(int), &curvLength), "clSetKernelArg curvature length");
-        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 4, sizeof(int), &width), "clSetKernelArg curvature width");
-        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 5, sizeof(int), &height), "clSetKernelArg curvature height");
-        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 6, sizeof(int), &depth), "clSetKernelArg curvature depth");
+        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 3, sizeof(int), &surfaceVoxelCount), "clSetKernelArg curvature surface voxel count");
+        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 4, sizeof(int), &curvLength), "clSetKernelArg curvature length");
+        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 5, sizeof(int), &width), "clSetKernelArg curvature width");
+        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 6, sizeof(int), &height), "clSetKernelArg curvature height");
+        checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 7, sizeof(int), &depth), "clSetKernelArg curvature depth");
 
-        const size_t globalSize = surfaceVoxelIds.size();
-        checkOpenCLError(clEnqueueNDRangeKernel(m_queue, m_estimateCurvatureKernel, 1, nullptr, &globalSize, nullptr, 0, nullptr, nullptr),
+        const size_t globalSize = ((surfaceVoxelIds.size() + kCurvatureWorkGroupSize - 1) /
+                                   kCurvatureWorkGroupSize) * kCurvatureWorkGroupSize;
+        std::cout << "OpenCL curvature launch: global size " << globalSize
+                  << ", local size " << kCurvatureWorkGroupSize << std::endl;
+        checkOpenCLError(clEnqueueNDRangeKernel(m_queue, m_estimateCurvatureKernel, 1, nullptr, &globalSize,
+                                                &kCurvatureWorkGroupSize, 0, nullptr, nullptr),
                          "clEnqueueNDRangeKernel estimateCurvature");
         checkOpenCLError(clFinish(m_queue), "clFinish estimateCurvature");
     }
