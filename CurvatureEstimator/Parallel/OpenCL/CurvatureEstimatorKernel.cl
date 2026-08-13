@@ -422,11 +422,13 @@ __kernel void computeFrontierVoxels(__global uchar* voxels, int R, int C, int D)
 __kernel void estimateCurvature(__global const uchar* voxels,
                                 __global int* curvatures,
                                 __global const int* surfaceVoxelIds,
+                                int surfaceVoxelCount,
                                 int curveLength,
                                 int R,
                                 int C,
                                 int D) {
     const int surfaceIndex = (int)get_global_id(0);
+    if (surfaceIndex >= surfaceVoxelCount) return;
     const int id = surfaceVoxelIds[surfaceIndex];
 
     if (curveLength > MAX_CURVE_LENGTH || voxels[id] != 1) {
