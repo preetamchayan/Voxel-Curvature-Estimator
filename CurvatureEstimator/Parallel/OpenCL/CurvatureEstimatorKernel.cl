@@ -1,14 +1,20 @@
 #define INT_MAX_VALUE 2147483647
 #define INT_MIN_VALUE (-2147483647 - 1)
 #define INVALID_CHAIN_CODE ((uchar)255)
+#define INVALID_VOXEL_ID UINT_MAX
 
 typedef struct Candidate {
-    int3 point;
+    uint voxelID;
     uchar chainCode;
 } Candidate;
 
-inline int getVoxelID(int x, int y, int z, int R, int C) {
-    return x + y * R + z * R * C;
+inline int getVoxelID(int3 point, int R, int C) {
+    return point.x + point.y * R + point.z * R * C;
+}
+
+inline int3 getCoordinates(uint voxelID, int R, int C) {
+    int t = voxelID % (R * C);
+    return (int3)(t % R, t / R, voxelID / (R * C));
 }
 
 inline int inGrid(int x, int y, int z, int R, int C, int D) {
@@ -21,23 +27,23 @@ inline int pointEqual(int3 a, int3 b) {
 
 inline Candidate invalidCandidate(void) {
     Candidate c;
-    c.point = (int3)(-1, -1, -1);
+    c.voxelID = INVALID_VOXEL_ID;
     c.chainCode = INVALID_CHAIN_CODE;
     return c;
 }
 
 inline int isInvalidCandidate(Candidate c) {
-    return c.chainCode == INVALID_CHAIN_CODE || pointEqual(c.point, (int3)(-1, -1, -1));
+    return c.chainCode == INVALID_CHAIN_CODE || c.voxelID == INVALID_VOXEL_ID;
 }
 
 inline int isSurface(__global const uchar* voxels, int3 point, int R, int C, int D) {
     return inGrid(point.x, point.y, point.z, R, C, D) &&
-           voxels[getVoxelID(point.x, point.y, point.z, R, C)] == 1;
+           voxels[getVoxelID(point, R, C)] == 1;
 }
 
 inline int isInterior(__global const uchar* voxels, int3 point, int R, int C, int D) {
     return inGrid(point.x, point.y, point.z, R, C, D) &&
-           voxels[getVoxelID(point.x, point.y, point.z, R, C)] == 2;
+           voxels[getVoxelID(point, R, C)] == 2;
 }
 
 inline uchar getChainCode(int2 neighbor, int2 voxel) {
@@ -53,8 +59,8 @@ inline uchar getChainCode(int2 neighbor, int2 voxel) {
     return INVALID_CHAIN_CODE;
 }
 
-inline void addNeighbor(int3 voxel, int3 neighbor, int neighborIndex, int plane, __private Candidate neighbors[8]) {
-    neighbors[neighborIndex].point = neighbor;
+inline void addNeighbor(int3 voxel, int3 neighbor, int neighborIndex, int plane, __private Candidate neighbors[8], int R, int C) {
+    neighbors[neighborIndex].voxelID = getVoxelID(neighbor, R, C);
     switch (plane / 3) {
         case 0:
             neighbors[neighborIndex].chainCode = getChainCode((int2)(neighbor.x, neighbor.y), (int2)(voxel.x, voxel.y));
@@ -71,7 +77,6 @@ inline void addNeighbor(int3 voxel, int3 neighbor, int neighborIndex, int plane,
 void getNeighborsInPlane(int3 voxel, int plane, __global const uchar* voxels, int R, int C, int D, __private Candidate neighbors[8]) {
     for (int n = 0; n < 8; ++n) neighbors[n] = invalidCandidate();
 
-    int3 v[8];
     const int x = voxel.x;
     const int y = voxel.y;
     const int z = voxel.z;
@@ -81,143 +86,107 @@ void getNeighborsInPlane(int3 voxel, int plane, __global const uchar* voxels, in
 
     switch (plane) {
         case 0:
-            v[0] = (int3)(x + 1, y, z);     v[1] = (int3)(x - 1, y, z);
-            v[2] = (int3)(x, y + 1, z);     v[3] = (int3)(x, y - 1, z);
-            v[4] = (int3)(x + 1, y + 1, z); v[5] = (int3)(x + 1, y - 1, z);
-            v[6] = (int3)(x - 1, y + 1, z); v[7] = (int3)(x - 1, y - 1, z);
-            if (x != xmax && isSurface(voxels, v[0], R, C, D)) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (x != xmin && isSurface(voxels, v[1], R, C, D)) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (y != ymax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (y != ymin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmax && y != ymax && isSurface(voxels, v[4], R, C, D)) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmax && y != ymin && isSurface(voxels, v[5], R, C, D)) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmin && y != ymax && isSurface(voxels, v[6], R, C, D)) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmin && y != ymin && isSurface(voxels, v[7], R, C, D)) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (x != xmax && isSurface(voxels, (int3)(x + 1, y, z), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y, z), 0, plane, neighbors, R, C);
+            if (x != xmin && isSurface(voxels, (int3)(x - 1, y, z), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y, z), 1, plane, neighbors, R, C);
+            if (y != ymax && isSurface(voxels, (int3)(x, y + 1, z), R, C, D)) addNeighbor(voxel, (int3)(x, y + 1, z), 2, plane, neighbors, R, C);
+            if (y != ymin && isSurface(voxels, (int3)(x, y - 1, z), R, C, D)) addNeighbor(voxel, (int3)(x, y - 1, z), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y + 1, z), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y - 1, z), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y + 1, z), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y - 1, z), 7, plane, neighbors, R, C);
             break;
         case 1:
-            v[0] = (int3)(x, y + 1, z);         v[1] = (int3)(x, y - 1, z);
-            v[2] = (int3)(x + 1, y, z - 1);     v[3] = (int3)(x - 1, y, z + 1);
-            v[4] = (int3)(x + 1, y + 1, z - 1); v[5] = (int3)(x - 1, y + 1, z + 1);
-            v[6] = (int3)(x + 1, y - 1, z - 1); v[7] = (int3)(x - 1, y - 1, z + 1);
-            if (y != ymax && (isSurface(voxels, v[0], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, v[0], R, C, D))) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (y != ymin && (isSurface(voxels, v[1], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D))) && !isInterior(voxels, v[1], R, C, D))) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (x != xmax && z != zmin && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (x != xmin && z != zmax && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmax && y != ymax && z != zmin && (isSurface(voxels, v[4], R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, v[4], R, C, D)))) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmin && y != ymax && z != zmax && (isSurface(voxels, v[5], R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && !isInterior(voxels, v[5], R, C, D)))) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmax && y != ymin && z != zmin && (isSurface(voxels, v[6], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, v[6], R, C, D)))) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmin && y != ymin && z != zmax && (isSurface(voxels, v[7], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, v[7], R, C, D)))) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (y != ymax && (isSurface(voxels, (int3)(x, y + 1, z), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x, y + 1, z), R, C, D))) addNeighbor(voxel, (int3)(x, y + 1, z), 0, plane, neighbors, R, C);
+            if (y != ymin && (isSurface(voxels, (int3)(x, y - 1, z), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x, y - 1, z), R, C, D))) addNeighbor(voxel, (int3)(x, y - 1, z), 1, plane, neighbors, R, C);
+            if (x != xmax && z != zmin && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y, z - 1), 2, plane, neighbors, R, C);
+            if (x != xmin && z != zmax && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y, z + 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmin && (isSurface(voxels, (int3)(x + 1, y + 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y + 1, z - 1), 4, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmax && (isSurface(voxels, (int3)(x - 1, y + 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && !isInterior(voxels, (int3)(x - 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y + 1, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmin && (isSurface(voxels, (int3)(x + 1, y - 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y - 1, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmax && (isSurface(voxels, (int3)(x - 1, y - 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x - 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y - 1, z + 1), 7, plane, neighbors, R, C);
             break;
         case 2:
-            v[0] = (int3)(x, y + 1, z);         v[1] = (int3)(x, y - 1, z);
-            v[2] = (int3)(x + 1, y, z + 1);     v[3] = (int3)(x - 1, y, z - 1);
-            v[4] = (int3)(x + 1, y + 1, z + 1); v[5] = (int3)(x + 1, y - 1, z + 1);
-            v[6] = (int3)(x - 1, y + 1, z - 1); v[7] = (int3)(x - 1, y - 1, z - 1);
-            if (y != ymax && (isSurface(voxels, v[0], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, v[0], R, C, D))) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (y != ymin && (isSurface(voxels, v[1], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D))) && !isInterior(voxels, v[1], R, C, D))) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (x != xmax && z != zmax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (x != xmin && z != zmin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmax && y != ymax && z != zmax && (isSurface(voxels, v[4], R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, v[4], R, C, D)))) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmax && y != ymin && z != zmax && (isSurface(voxels, v[5], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, v[5], R, C, D)))) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmin && y != ymax && z != zmin && (isSurface(voxels, v[6], R, C, D) || (isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && !isInterior(voxels, v[6], R, C, D)))) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmin && y != ymin && z != zmin && (isSurface(voxels, v[7], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, v[7], R, C, D)))) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (y != ymax && (isSurface(voxels, (int3)(x, y + 1, z), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x, y + 1, z), R, C, D))) addNeighbor(voxel, (int3)(x, y + 1, z), 0, plane, neighbors, R, C);
+            if (y != ymin && (isSurface(voxels, (int3)(x, y - 1, z), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x, y - 1, z), R, C, D))) addNeighbor(voxel, (int3)(x, y - 1, z), 1, plane, neighbors, R, C);
+            if (x != xmax && z != zmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y, z + 1), 2, plane, neighbors, R, C);
+            if (x != xmin && z != zmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y, z - 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmax && (isSurface(voxels, (int3)(x + 1, y + 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmax && (isSurface(voxels, (int3)(x + 1, y - 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y - 1, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmin && (isSurface(voxels, (int3)(x - 1, y + 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && !isInterior(voxels, (int3)(x - 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y + 1, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmin && (isSurface(voxels, (int3)(x - 1, y - 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x - 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y - 1, z - 1), 7, plane, neighbors, R, C);
             break;
         case 3:
-            v[0] = (int3)(x, y + 1, z);     v[1] = (int3)(x, y - 1, z);
-            v[2] = (int3)(x, y, z + 1);     v[3] = (int3)(x, y, z - 1);
-            v[4] = (int3)(x, y + 1, z + 1); v[5] = (int3)(x, y + 1, z - 1);
-            v[6] = (int3)(x, y - 1, z + 1); v[7] = (int3)(x, y - 1, z - 1);
-            if (y != ymax && isSurface(voxels, v[0], R, C, D)) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (y != ymin && isSurface(voxels, v[1], R, C, D)) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (z != zmax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (z != zmin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (y != ymax && z != zmax && isSurface(voxels, v[4], R, C, D)) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (y != ymax && z != zmin && isSurface(voxels, v[5], R, C, D)) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (y != ymin && z != zmax && isSurface(voxels, v[6], R, C, D)) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (y != ymin && z != zmin && isSurface(voxels, v[7], R, C, D)) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (y != ymax && isSurface(voxels, (int3)(x, y + 1, z), R, C, D)) addNeighbor(voxel, (int3)(x, y + 1, z), 0, plane, neighbors, R, C);
+            if (y != ymin && isSurface(voxels, (int3)(x, y - 1, z), R, C, D)) addNeighbor(voxel, (int3)(x, y - 1, z), 1, plane, neighbors, R, C);
+            if (z != zmax && isSurface(voxels, (int3)(x, y, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x, y, z + 1), 2, plane, neighbors, R, C);
+            if (z != zmin && isSurface(voxels, (int3)(x, y, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x, y, z - 1), 3, plane, neighbors, R, C);
+            if (y != ymax && z != zmax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (y != ymax && z != zmin && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x, y + 1, z - 1), 5, plane, neighbors, R, C);
+            if (y != ymin && z != zmax && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x, y - 1, z + 1), 6, plane, neighbors, R, C);
+            if (y != ymin && z != zmin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x, y - 1, z - 1), 7, plane, neighbors, R, C);
             break;
         case 4:
-            v[0] = (int3)(x, y, z + 1);         v[1] = (int3)(x, y, z - 1);
-            v[2] = (int3)(x - 1, y + 1, z);     v[3] = (int3)(x + 1, y - 1, z);
-            v[4] = (int3)(x - 1, y + 1, z + 1); v[5] = (int3)(x - 1, y + 1, z - 1);
-            v[6] = (int3)(x + 1, y - 1, z + 1); v[7] = (int3)(x + 1, y - 1, z - 1);
-            if (z != zmax && (isSurface(voxels, v[0], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, v[0], R, C, D))) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (z != zmin && (isSurface(voxels, v[1], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D))) && !isInterior(voxels, v[1], R, C, D))) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (x != xmin && y != ymax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (x != xmax && y != ymin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmin && y != ymax && z != zmax && (isSurface(voxels, v[4], R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && !isInterior(voxels, v[4], R, C, D)))) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmin && y != ymax && z != zmin && (isSurface(voxels, v[5], R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && !isInterior(voxels, v[5], R, C, D)))) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmax && y != ymin && z != zmax && (isSurface(voxels, v[6], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && !isInterior(voxels, v[6], R, C, D)))) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmax && y != ymin && z != zmin && (isSurface(voxels, v[7], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && !isInterior(voxels, v[7], R, C, D)))) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (z != zmax && (isSurface(voxels, (int3)(x, y, z + 1), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x, y, z + 1), R, C, D))) addNeighbor(voxel, (int3)(x, y, z + 1), 0, plane, neighbors, R, C);
+            if (z != zmin && (isSurface(voxels, (int3)(x, y, z - 1), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D))) && !isInterior(voxels, (int3)(x, y, z - 1), R, C, D))) addNeighbor(voxel, (int3)(x, y, z - 1), 1, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y + 1, z), 2, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y - 1, z), 3, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmax && (isSurface(voxels, (int3)(x - 1, y + 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && !isInterior(voxels, (int3)(x - 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmin && (isSurface(voxels, (int3)(x - 1, y + 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && !isInterior(voxels, (int3)(x - 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y + 1, z - 1), 5, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmax && (isSurface(voxels, (int3)(x + 1, y - 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && !isInterior(voxels, (int3)(x + 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y - 1, z + 1), 6, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmin && (isSurface(voxels, (int3)(x + 1, y - 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && !isInterior(voxels, (int3)(x + 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y - 1, z - 1), 7, plane, neighbors, R, C);
             break;
         case 5:
-            v[0] = (int3)(x, y, z + 1);         v[1] = (int3)(x, y, z - 1);
-            v[2] = (int3)(x + 1, y + 1, z);     v[3] = (int3)(x - 1, y - 1, z);
-            v[4] = (int3)(x + 1, y + 1, z + 1); v[5] = (int3)(x + 1, y + 1, z - 1);
-            v[6] = (int3)(x - 1, y - 1, z + 1); v[7] = (int3)(x - 1, y - 1, z - 1);
-            if (z != zmax && (isSurface(voxels, v[0], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, v[0], R, C, D))) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (z != zmin && (isSurface(voxels, v[1], R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D))) && !isInterior(voxels, v[1], R, C, D))) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (x != xmax && y != ymax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (x != xmin && y != ymin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmax && y != ymax && z != zmax && (isSurface(voxels, v[4], R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && !isInterior(voxels, v[4], R, C, D)))) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmax && y != ymax && z != zmin && (isSurface(voxels, v[5], R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && !isInterior(voxels, v[5], R, C, D)))) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmin && y != ymin && z != zmax && (isSurface(voxels, v[6], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && !isInterior(voxels, v[6], R, C, D)))) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmin && y != ymin && z != zmin && (isSurface(voxels, v[7], R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && !isInterior(voxels, v[7], R, C, D)))) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (z != zmax && (isSurface(voxels, (int3)(x, y, z + 1), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x, y, z + 1), R, C, D))) addNeighbor(voxel, (int3)(x, y, z + 1), 0, plane, neighbors, R, C);
+            if (z != zmin && (isSurface(voxels, (int3)(x, y, z - 1), R, C, D) || ((x != xmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (x != xmax && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D))) && ((y != ymin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D))) && !isInterior(voxels, (int3)(x, y, z - 1), R, C, D))) addNeighbor(voxel, (int3)(x, y, z - 1), 1, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y + 1, z), 2, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y - 1, z), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmax && (isSurface(voxels, (int3)(x + 1, y + 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && !isInterior(voxels, (int3)(x + 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmin && (isSurface(voxels, (int3)(x + 1, y + 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D) && !isInterior(voxels, (int3)(x + 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y + 1, z - 1), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmax && (isSurface(voxels, (int3)(x - 1, y - 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && !isInterior(voxels, (int3)(x - 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y - 1, z + 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmin && (isSurface(voxels, (int3)(x - 1, y - 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && !isInterior(voxels, (int3)(x - 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y - 1, z - 1), 7, plane, neighbors, R, C);
             break;
         case 6:
-            v[0] = (int3)(x, y, z + 1);     v[1] = (int3)(x, y, z - 1);
-            v[2] = (int3)(x + 1, y, z);     v[3] = (int3)(x - 1, y, z);
-            v[4] = (int3)(x + 1, y, z + 1); v[5] = (int3)(x - 1, y, z + 1);
-            v[6] = (int3)(x + 1, y, z - 1); v[7] = (int3)(x - 1, y, z - 1);
-            if (z != zmax && isSurface(voxels, v[0], R, C, D)) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (z != zmin && isSurface(voxels, v[1], R, C, D)) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (x != xmax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (x != xmin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmax && z != zmax && isSurface(voxels, v[4], R, C, D)) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmin && z != zmax && isSurface(voxels, v[5], R, C, D)) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmax && z != zmin && isSurface(voxels, v[6], R, C, D)) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmin && z != zmin && isSurface(voxels, v[7], R, C, D)) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (z != zmax && isSurface(voxels, (int3)(x, y, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x, y, z + 1), 0, plane, neighbors, R, C);
+            if (z != zmin && isSurface(voxels, (int3)(x, y, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x, y, z - 1), 1, plane, neighbors, R, C);
+            if (x != xmax && isSurface(voxels, (int3)(x + 1, y, z), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y, z), 2, plane, neighbors, R, C);
+            if (x != xmin && isSurface(voxels, (int3)(x - 1, y, z), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y, z), 3, plane, neighbors, R, C);
+            if (x != xmax && z != zmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmin && z != zmax && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmax && z != zmin && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x + 1, y, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && z != zmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x - 1, y, z - 1), 7, plane, neighbors, R, C);
             break;
         case 7:
-            v[0] = (int3)(x + 1, y, z);         v[1] = (int3)(x - 1, y, z);
-            v[2] = (int3)(x, y - 1, z + 1);     v[3] = (int3)(x, y + 1, z - 1);
-            v[4] = (int3)(x + 1, y - 1, z + 1); v[5] = (int3)(x - 1, y - 1, z + 1);
-            v[6] = (int3)(x + 1, y + 1, z - 1); v[7] = (int3)(x - 1, y + 1, z - 1);
-            if (x != xmax && (isSurface(voxels, v[0], R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && !isInterior(voxels, v[0], R, C, D))) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (x != xmin && (isSurface(voxels, v[1], R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D))) && !isInterior(voxels, v[1], R, C, D))) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (y != ymin && z != zmax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (y != ymax && z != zmin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmax && y != ymin && z != zmax && (isSurface(voxels, v[4], R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, v[4], R, C, D)))) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmin && y != ymin && z != zmax && (isSurface(voxels, v[5], R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, v[5], R, C, D)))) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmax && y != ymax && z != zmin && (isSurface(voxels, v[6], R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, v[6], R, C, D)))) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmin && y != ymax && z != zmin && (isSurface(voxels, v[7], R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && !isInterior(voxels, v[7], R, C, D)))) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (x != xmax && (isSurface(voxels, (int3)(x + 1, y, z), R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x + 1, y, z), R, C, D))) addNeighbor(voxel, (int3)(x + 1, y, z), 0, plane, neighbors, R, C);
+            if (x != xmin && (isSurface(voxels, (int3)(x - 1, y, z), R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x - 1, y, z), R, C, D))) addNeighbor(voxel, (int3)(x - 1, y, z), 1, plane, neighbors, R, C);
+            if (y != ymin && z != zmax && isSurface(voxels, (int3)(x, y - 1, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x, y - 1, z + 1), 2, plane, neighbors, R, C);
+            if (y != ymax && z != zmin && isSurface(voxels, (int3)(x, y + 1, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x, y + 1, z - 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmax && (isSurface(voxels, (int3)(x + 1, y - 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y - 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmax && (isSurface(voxels, (int3)(x - 1, y - 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x - 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y - 1, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmin && (isSurface(voxels, (int3)(x + 1, y + 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y + 1, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmin && (isSurface(voxels, (int3)(x - 1, y + 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && !isInterior(voxels, (int3)(x - 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y + 1, z - 1), 7, plane, neighbors, R, C);
             break;
         case 8:
-            v[0] = (int3)(x + 1, y, z);         v[1] = (int3)(x - 1, y, z);
-            v[2] = (int3)(x, y + 1, z + 1);     v[3] = (int3)(x, y - 1, z - 1);
-            v[4] = (int3)(x + 1, y + 1, z + 1); v[5] = (int3)(x + 1, y - 1, z - 1);
-            v[6] = (int3)(x - 1, y + 1, z + 1); v[7] = (int3)(x - 1, y - 1, z - 1);
-            if (x != xmax && (isSurface(voxels, v[0], R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && !isInterior(voxels, v[0], R, C, D))) addNeighbor(voxel, v[0], 0, plane, neighbors);
-            if (x != xmin && (isSurface(voxels, v[1], R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D))) && !isInterior(voxels, v[1], R, C, D))) addNeighbor(voxel, v[1], 1, plane, neighbors);
-            if (y != ymax && z != zmax && isSurface(voxels, v[2], R, C, D)) addNeighbor(voxel, v[2], 2, plane, neighbors);
-            if (y != ymin && z != zmin && isSurface(voxels, v[3], R, C, D)) addNeighbor(voxel, v[3], 3, plane, neighbors);
-            if (x != xmax && y != ymax && z != zmax && (isSurface(voxels, v[4], R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, v[4], R, C, D)))) addNeighbor(voxel, v[4], 4, plane, neighbors);
-            if (x != xmax && y != ymin && z != zmin && (isSurface(voxels, v[5], R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, v[5], R, C, D)))) addNeighbor(voxel, v[5], 5, plane, neighbors);
-            if (x != xmin && y != ymax && z != zmax && (isSurface(voxels, v[6], R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && !isInterior(voxels, v[6], R, C, D)))) addNeighbor(voxel, v[6], 6, plane, neighbors);
-            if (x != xmin && y != ymin && z != zmin && (isSurface(voxels, v[7], R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, v[7], R, C, D)))) addNeighbor(voxel, v[7], 7, plane, neighbors);
+            if (x != xmax && (isSurface(voxels, (int3)(x + 1, y, z), R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x + 1, y, z), R, C, D))) addNeighbor(voxel, (int3)(x + 1, y, z), 0, plane, neighbors, R, C);
+            if (x != xmin && (isSurface(voxels, (int3)(x - 1, y, z), R, C, D) || ((y != ymin && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D))) && !isInterior(voxels, (int3)(x - 1, y, z), R, C, D))) addNeighbor(voxel, (int3)(x - 1, y, z), 1, plane, neighbors, R, C);
+            if (y != ymax && z != zmax && isSurface(voxels, (int3)(x, y + 1, z + 1), R, C, D)) addNeighbor(voxel, (int3)(x, y + 1, z + 1), 2, plane, neighbors, R, C);
+            if (y != ymin && z != zmin && isSurface(voxels, (int3)(x, y - 1, z - 1), R, C, D)) addNeighbor(voxel, (int3)(x, y - 1, z - 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmax && (isSurface(voxels, (int3)(x + 1, y + 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y + 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmin && (isSurface(voxels, (int3)(x + 1, y - 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x + 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x + 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x + 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x + 1, y - 1, z - 1), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmax && (isSurface(voxels, (int3)(x - 1, y + 1, z + 1), R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z + 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y + 1, z), R, C, D) && !isInterior(voxels, (int3)(x - 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y + 1, z + 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmin && (isSurface(voxels, (int3)(x - 1, y - 1, z - 1), R, C, D) || (isSurface(voxels, (int3)(x - 1, y, z - 1), R, C, D) && isSurface(voxels, (int3)(x - 1, y - 1, z), R, C, D) && !isInterior(voxels, (int3)(x - 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, (int3)(x - 1, y - 1, z - 1), 7, plane, neighbors, R, C);
             break;
     }
 }
 
-int findNextLevelVoxels(int step, int plane, __private Candidate curve[8], __private const int3 curve3D[2 * MAX_CURVE_LENGTH + 1], int curveLength, __global const uchar* voxels, int R, int C, int D) {
-    int3 voxel = curve3D[curveLength + step];
+int findNextLevelVoxels(int step, int plane, __private Candidate curve[8], __private const uint curve3D[2 * MAX_CURVE_LENGTH + 1], int curveLength, __global const uchar* voxels, int R, int C, int D) {
+    int3 voxel = getCoordinates(curve3D[curveLength + step], R, C);
     int absoluteStep = abs(step);
     getNeighborsInPlane(voxel, plane, voxels, R, C, D, curve);
 
     int count = 0;
     for (int j = 0; j < 8; ++j) {
         for (int k = curveLength - absoluteStep; k <= curveLength + absoluteStep; ++k) {
-            if (pointEqual(curve3D[k], curve[j].point)) {
+            if (curve3D[k] == curve[j].voxelID) {
                 curve[j] = invalidCandidate();
                 break;
             }
@@ -228,7 +197,7 @@ int findNextLevelVoxels(int step, int plane, __private Candidate curve[8], __pri
     return !(count == 0 || count > 3);
 }
 
-int computeCurvatureOfDigitalCurve2D(int plane, int3 voxel, __private Candidate trailCurve[8], __private Candidate leadCurve[8], __private int3 curve3D[2 * MAX_CURVE_LENGTH + 1], int curveLength, __global const uchar* voxels, int R, int C, int D, __private int* curvature) {
+int computeCurvatureOfDigitalCurve2D(int plane, int3 voxel, __private Candidate trailCurve[8], __private Candidate leadCurve[8], __private uint curve3D[2 * MAX_CURVE_LENGTH + 1], int curveLength, __global const uchar* voxels, int R, int C, int D, __private int* curvature) {
     uchar prevTrailChainCode = INVALID_CHAIN_CODE;
     uchar prevLeadChainCode = INVALID_CHAIN_CODE;
     int curvatureSum = 0;
@@ -241,12 +210,12 @@ int computeCurvatureOfDigitalCurve2D(int plane, int3 voxel, __private Candidate 
 
         for (int j = 0; j < 8; ++j) {
             if (isInvalidCandidate(trailCurve[j])) continue;
-            int3 voxel1 = trailCurve[j].point;
+            int3 voxel1 = getCoordinates(trailCurve[j].voxelID, R, C);
             uchar trailChain = trailCurve[j].chainCode;
 
             for (int k = 0; k < 8; ++k) {
                 if (isInvalidCandidate(leadCurve[k])) continue;
-                int3 voxel2 = leadCurve[k].point;
+                int3 voxel2 = getCoordinates(leadCurve[k].voxelID, R, C);
                 uchar leadChain = leadCurve[k].chainCode < 4 ? leadCurve[k].chainCode + 4 : leadCurve[k].chainCode - 4;
 
                 int distX12 = max(max(abs(voxel1.x - voxel2.x), abs(voxel1.y - voxel2.y)), abs(voxel1.z - voxel2.z));
@@ -261,8 +230,8 @@ int computeCurvatureOfDigitalCurve2D(int plane, int3 voxel, __private Candidate 
                     trailChainCode = trailChain;
                     leadChainCode = leadChain;
                     minDiff = diff;
-                    curve3D[curveLength - i] = voxel1;
-                    curve3D[curveLength + i] = voxel2;
+                    curve3D[curveLength - i] = getVoxelID(voxel1, R, C);
+                    curve3D[curveLength + i] = getVoxelID(voxel2, R, C);
                 }
             }
         }
@@ -298,8 +267,8 @@ int computeCurvatureOfDigitalCurve2D(int plane, int3 voxel, __private Candidate 
 }
 
 int computeCurvatureOfDigitalCurve3D(int3 voxel, int plane, int curveLength, __global const uchar* voxels, int R, int C, int D) {
-    int3 curve3D[2 * MAX_CURVE_LENGTH + 1];
-    curve3D[curveLength] = voxel;
+    uint curve3D[2 * MAX_CURVE_LENGTH + 1];
+    curve3D[curveLength] = getVoxelID(voxel, R, C);
 
     int curvature = INT_MAX_VALUE;
     Candidate headCurve[8];
@@ -394,7 +363,7 @@ __kernel void markInteriorVoxels(__global uchar* voxels, int R, int C, int D) {
     const int z = (int)get_global_id(2);
     if (x >= R || y >= C || z >= D) return;
 
-    const int id = getVoxelID(x, y, z, R, C);
+    const int id = getVoxelID((int3)(x, y, z), R, C);
     if (voxels[id] == 2 || voxels[id] == 4) voxels[id] = 0;
     else if (voxels[id] == 6) voxels[id] = 2;
 }
@@ -405,7 +374,7 @@ __kernel void computeFrontierVoxels(__global uchar* voxels, int R, int C, int D)
     const int z = (int)get_global_id(2);
     if (x >= R || y >= C || z >= D) return;
 
-    const int id = getVoxelID(x, y, z, R, C);
+    const int id = getVoxelID((int3)(x, y, z), R, C);
     if (voxels[id] != 1) return;
 
     const int slice = R * C;
@@ -429,17 +398,13 @@ __kernel void estimateCurvature(__global const uchar* voxels,
                                 int D) {
     const int surfaceIndex = (int)get_global_id(0);
     if (surfaceIndex >= surfaceVoxelCount) return;
-    const int id = surfaceVoxelIds[surfaceIndex];
+    const int voxelID = surfaceVoxelIds[surfaceIndex];
 
-    if (curveLength > MAX_CURVE_LENGTH || voxels[id] != 1) {
-        curvatures[id] = INT_MAX_VALUE;
+    if (curveLength > MAX_CURVE_LENGTH || voxels[voxelID] != 1) {
+        curvatures[voxelID] = INT_MAX_VALUE;
         return;
     }
 
-    const int slice = R * C;
-    const int z = id / slice;
-    const int rem = id - z * slice;
-    const int y = rem / R;
-    const int x = rem - y * R;
-    curvatures[id] = computeCurvatureAtVoxel((int3)(x, y, z), curveLength, voxels, R, C, D);
+    const int3 voxel = getCoordinates(voxelID, R, C);
+    curvatures[voxelID] = computeCurvatureAtVoxel(voxel, curveLength, voxels, R, C, D);
 }

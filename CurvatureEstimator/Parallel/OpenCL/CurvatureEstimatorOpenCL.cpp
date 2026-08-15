@@ -1,6 +1,7 @@
 #include "CurvatureEstimatorOpenCL.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
@@ -12,7 +13,23 @@
 
 namespace {
 constexpr int kMaxOpenCLCurveLength = 32;
-constexpr size_t kCurvatureWorkGroupSize = 384;
+constexpr size_t kDefaultCurvatureWorkGroupSize = 64;
+
+size_t getCurvatureWorkGroupSize() {
+    const char* value = std::getenv("CURVATURE_WORK_GROUP_SIZE");
+    if (!value || *value == '\0') {
+        return kDefaultCurvatureWorkGroupSize;
+    }
+
+    char* end = nullptr;
+    const unsigned long long parsed = std::strtoull(value, &end, 10);
+    if (*end != '\0' || parsed == 0 ||
+        parsed > static_cast<unsigned long long>(std::numeric_limits<size_t>::max())) {
+        throw std::runtime_error("CURVATURE_WORK_GROUP_SIZE must be a positive integer");
+    }
+
+    return static_cast<size_t>(parsed);
+}
 
 std::string getPlatformInfoString(cl_platform_id platform, cl_platform_info paramName) {
     size_t size = 0;
@@ -101,7 +118,7 @@ CurvatureEstimatorOpenCL::CurvatureEstimatorOpenCL()
     m_context = clCreateContext(nullptr, 1, &m_device, nullptr, nullptr, &err);
     checkOpenCLError(err, "clCreateContext");
 
-    m_queue = clCreateCommandQueue(m_context, m_device, 0, &err);
+    m_queue = clCreateCommandQueue(m_context, m_device, CL_QUEUE_PROFILING_ENABLE, &err);
     checkOpenCLError(err, "clCreateCommandQueue");
 
     const std::string kernelSource = loadKernelSource("CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorKernel.cl");
@@ -281,6 +298,7 @@ void CurvatureEstimatorOpenCL::estimateCurvature(int curvLength,
         throw std::runtime_error("OpenCL curvature supports at most INT_MAX voxels");
     }
 
+    const auto surfaceCollectionStart = std::chrono::steady_clock::now();
     std::vector<int> surfaceVoxelIds;
     surfaceVoxelIds.reserve(voxelCount);
     for (size_t id = 0; id < voxelCount; ++id) {
@@ -288,9 +306,14 @@ void CurvatureEstimatorOpenCL::estimateCurvature(int curvLength,
             surfaceVoxelIds.push_back(static_cast<int>(id));
         }
     }
-    std::cout << "OpenCL curvature dispatch: " << surfaceVoxelIds.size()
+    const auto surfaceCollectionEnd = std::chrono::steady_clock::now();
+    std::cout << "CURVATURE_PROFILE_OPENCL_SURFACE_COLLECTION_MS="
+              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     surfaceCollectionEnd - surfaceCollectionStart).count() << '\n'
+              << "OpenCL curvature dispatch: " << surfaceVoxelIds.size()
               << " surface voxels out of " << voxelCount << " grid voxels" << std::endl;
 
+    const auto bufferSetupStart = std::chrono::steady_clock::now();
     cl_int err = CL_SUCCESS;
     cl_mem voxelsBuffer = clCreateBuffer(
         m_context,
@@ -332,18 +355,48 @@ void CurvatureEstimatorOpenCL::estimateCurvature(int curvLength,
         checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 6, sizeof(int), &height), "clSetKernelArg curvature height");
         checkOpenCLError(clSetKernelArg(m_estimateCurvatureKernel, 7, sizeof(int), &depth), "clSetKernelArg curvature depth");
 
-        const size_t globalSize = ((surfaceVoxelIds.size() + kCurvatureWorkGroupSize - 1) /
-                                   kCurvatureWorkGroupSize) * kCurvatureWorkGroupSize;
+        const auto bufferSetupEnd = std::chrono::steady_clock::now();
+        std::cout << "CURVATURE_PROFILE_OPENCL_BUFFER_SETUP_MS="
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         bufferSetupEnd - bufferSetupStart).count() << std::endl;
+
+        const size_t curvatureWorkGroupSize = getCurvatureWorkGroupSize();
+        const size_t globalSize = ((surfaceVoxelIds.size() + curvatureWorkGroupSize - 1) /
+                                   curvatureWorkGroupSize) * curvatureWorkGroupSize;
         std::cout << "OpenCL curvature launch: global size " << globalSize
-                  << ", local size " << kCurvatureWorkGroupSize << std::endl;
+                  << ", local size " << curvatureWorkGroupSize << std::endl;
+        const auto launchWaitStart = std::chrono::steady_clock::now();
+        cl_event kernelEvent = nullptr;
         checkOpenCLError(clEnqueueNDRangeKernel(m_queue, m_estimateCurvatureKernel, 1, nullptr, &globalSize,
-                                                &kCurvatureWorkGroupSize, 0, nullptr, nullptr),
+                                                &curvatureWorkGroupSize, 0, nullptr, &kernelEvent),
                          "clEnqueueNDRangeKernel estimateCurvature");
         checkOpenCLError(clFinish(m_queue), "clFinish estimateCurvature");
+        const auto launchWaitEnd = std::chrono::steady_clock::now();
+
+        cl_ulong kernelStartNs = 0;
+        cl_ulong kernelEndNs = 0;
+        checkOpenCLError(clGetEventProfilingInfo(kernelEvent, CL_PROFILING_COMMAND_START,
+                                                  sizeof(kernelStartNs), &kernelStartNs, nullptr),
+                         "clGetEventProfilingInfo estimateCurvature start");
+        checkOpenCLError(clGetEventProfilingInfo(kernelEvent, CL_PROFILING_COMMAND_END,
+                                                  sizeof(kernelEndNs), &kernelEndNs, nullptr),
+                         "clGetEventProfilingInfo estimateCurvature end");
+        clReleaseEvent(kernelEvent);
+
+        std::cout << "CURVATURE_PROFILE_OPENCL_LAUNCH_WAIT_MS="
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         launchWaitEnd - launchWaitStart).count() << '\n'
+                  << "CURVATURE_PROFILE_OPENCL_KERNEL_DEVICE_MS="
+                  << (kernelEndNs - kernelStartNs) / 1'000'000.0 << std::endl;
     }
 
+    const auto readbackStart = std::chrono::steady_clock::now();
     checkOpenCLError(clEnqueueReadBuffer(m_queue, curvaturesBuffer, CL_TRUE, 0, curvatures.size() * sizeof(int), curvatures.data(), 0, nullptr, nullptr),
                      "clEnqueueReadBuffer curvatures");
+    const auto readbackEnd = std::chrono::steady_clock::now();
+    std::cout << "CURVATURE_PROFILE_OPENCL_READBACK_MS="
+              << std::chrono::duration_cast<std::chrono::milliseconds>(
+                     readbackEnd - readbackStart).count() << std::endl;
 
     if (surfaceVoxelIdsBuffer) clReleaseMemObject(surfaceVoxelIdsBuffer);
     clReleaseMemObject(curvaturesBuffer);

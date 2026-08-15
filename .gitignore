@@ -3,6 +3,12 @@ output/*.obj
 output/*.txt
 output/*.mtl
 output/*.bin
+output/*.log
+benchmark/*.log
+benchmark/results/
+benchmark/__pycache__/
+benchmark/*.obj
+benchmark/*.mtl
 *.obj
 *.pdb
 *.ilk

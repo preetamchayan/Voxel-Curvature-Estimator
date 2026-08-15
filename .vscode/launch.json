@@ -26,7 +26,8 @@
       "args": [
         "assets\\armadillo.obj",
         "output\\armadillo_voxelized.obj",
-        "output\\armadillo_curvature.obj"
+        "output\\armadillo_curvature.obj",
+        "output\\armadillo_curvature.mtl"
       ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
