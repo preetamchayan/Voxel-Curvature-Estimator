@@ -22,6 +22,8 @@
 #include <iostream>
 #include <sstream>
 #include <cassert>
+#include <chrono>
+#include <cstdint>
 #include <limits>
 #include <filesystem>
 
@@ -29,7 +31,8 @@ CurvatureEstimator::CurvatureEstimator(
     std::vector<unsigned char>& voxels,
     const BBox3i& bounds,
     const Dimensions3i& dims)
-    : m_voxels(voxels), m_bounds(bounds), m_dims(dims), m_base(nullptr) {
+    : m_voxels(voxels), m_bounds(bounds), m_dims(dims), m_curveLength(0),
+      m_maxCurvature(std::numeric_limits<int>::min()), m_base(nullptr) {
     const size_t voxelGridSize = static_cast<size_t>(dims.width) * dims.height * dims.depth;
     assert(m_voxels.size() == voxelGridSize);
 
@@ -67,9 +70,50 @@ void CurvatureEstimator::estimateCurvature(int curveLength) {
 
     if (m_base) {
         m_curvatures.assign(m_voxels.size(), std::numeric_limits<int>::max());
+        const auto backendStart = std::chrono::steady_clock::now();
         m_base->estimateCurvature(curveLength, m_voxels, m_curvatures, m_dims);
+        const auto backendEnd = std::chrono::steady_clock::now();
+        std::cout << "CURVATURE_PROFILE_BACKEND_MS="
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         backendEnd - backendStart).count() << std::endl;
         assert(m_voxels.size() == m_curvatures.size());
+
+        constexpr std::uint64_t fnvOffsetBasis = 14695981039346656037ull;
+        constexpr std::uint64_t fnvPrime = 1099511628211ull;
+        const int invalidCurvature = std::numeric_limits<int>::max();
+        size_t surfaceVoxelCount = 0;
+        size_t rawValidCurvatureCount = 0;
+        std::uint64_t rawCurvatureChecksum = fnvOffsetBasis;
+
+        for (size_t id = 0; id < m_voxels.size(); ++id) {
+            if (m_voxels[id] != 1) {
+                continue;
+            }
+
+            ++surfaceVoxelCount;
+            const int curvature = m_curvatures[id];
+            if (curvature != invalidCurvature) {
+                ++rawValidCurvatureCount;
+            }
+
+            const std::uint64_t value = static_cast<std::uint32_t>(curvature);
+            rawCurvatureChecksum ^= static_cast<std::uint64_t>(id);
+            rawCurvatureChecksum *= fnvPrime;
+            rawCurvatureChecksum ^= value;
+            rawCurvatureChecksum *= fnvPrime;
+        }
+
+        std::cout << "CURVATURE_RAW_SURFACE_VOXELS=" << surfaceVoxelCount << '\n'
+                  << "CURVATURE_RAW_VALID_VOXELS=" << rawValidCurvatureCount << '\n'
+                  << "CURVATURE_RAW_INVALID_VOXELS=" << (surfaceVoxelCount - rawValidCurvatureCount) << '\n'
+                  << "CURVATURE_RAW_CHECKSUM=" << rawCurvatureChecksum << std::endl;
+
+        const auto averagingStart = std::chrono::steady_clock::now();
         averageCurvature();
+        const auto averagingEnd = std::chrono::steady_clock::now();
+        std::cout << "CURVATURE_PROFILE_AVERAGING_MS="
+                  << std::chrono::duration_cast<std::chrono::milliseconds>(
+                         averagingEnd - averagingStart).count() << std::endl;
     }
 }
 
@@ -142,10 +186,7 @@ void CurvatureEstimator::averageCurvature() {
     }
 
     m_curvatures.swap(averagedCurvatures);
-
-    std::filesystem::create_directories("output");
-    std::ofstream fpMTL("output/curvatureMaterial.mtl");
-    writeMaterialFile(maxCurvature, fpMTL, m_colors);
+    m_maxCurvature = maxCurvature;
 }
 
 void CurvatureEstimator::writeMaterialFile(
@@ -178,9 +219,46 @@ void CurvatureEstimator::writeMaterialFile(
 	}
 }
 
-void CurvatureEstimator::exportCurvatureOBJ(const std::string& filename) const {
+void CurvatureEstimator::exportCurvatureLog(const std::string& filename) const {
+    std::ofstream logFile(filename);
+    if (!logFile) {
+        throw std::runtime_error("Unable to open curvature log file: " + filename);
+    }
+
+    for (int z = 0; z < m_dims.depth; ++z) {
+        for (int y = 0; y < m_dims.height; ++y) {
+            for (int x = 0; x < m_dims.width; ++x) {
+                const size_t id = static_cast<size_t>(x) +
+                                  static_cast<size_t>(y) * m_dims.width +
+                                  static_cast<size_t>(z) * m_dims.width * m_dims.height;
+                if (m_voxels[id] != 1) {
+                    continue;
+                }
+
+                logFile << (x + m_bounds.xmin) << ' '
+                        << (y + m_bounds.ymin) << ' '
+                        << (z + m_bounds.zmin) << ' '
+                        << m_curvatures[id] << '\n';
+            }
+        }
+    }
+
+    std::cout << "Exported curvature log to " << filename << std::endl;
+}
+
+void CurvatureEstimator::exportCurvatureOBJ(const std::string& filename,
+                                            const std::string& materialFilename) {
+    std::ofstream materialFile(materialFilename);
+    if (!materialFile) {
+        throw std::runtime_error("Unable to open curvature material file: " + materialFilename);
+    }
+    writeMaterialFile(m_maxCurvature, materialFile, m_colors);
+
     std::ofstream fp(filename);
-    fp << "mtllib curvatureMaterial.mtl\n\n";
+    if (!fp) {
+        throw std::runtime_error("Unable to open curvature OBJ file: " + filename);
+    }
+    fp << "mtllib " << std::filesystem::path(materialFilename).filename().string() << "\n\n";
 
     for (int z = 0; z < m_dims.depth; ++z) {
         for (int y = 0; y < m_dims.height; ++y) {

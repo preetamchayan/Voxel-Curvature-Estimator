@@ -32,13 +32,15 @@ public:
     void estimateCurvature(int curveLength);
     const std::vector<unsigned char>& getVoxels() const;
     BBox3i getSceneBounds() const;
-    void exportCurvatureOBJ(const std::string& filename) const;
+    void exportCurvatureOBJ(const std::string& filename, const std::string& materialFilename);
+    void exportCurvatureLog(const std::string& filename) const;
 private:
     std::vector<unsigned char>& m_voxels;
     std::vector<int> m_curvatures;
     BBox3i m_bounds;
     Dimensions3i m_dims;
     int m_curveLength;
+    int m_maxCurvature;
     CurvatureEstimatorBase* m_base;
     std::vector<Color> m_colors;
 private:
