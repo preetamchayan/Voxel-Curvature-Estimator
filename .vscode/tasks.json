@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "compile shader",
+      "label": "compile voxelizer Vulkan shader",
       "type": "shell",
       "command": "glslangValidator",
       "args": [
@@ -11,6 +11,27 @@
         "-o",
         "Voxelizer/Parallel/Vulkan/MeshVoxelizerKernel.spv"
       ],
+      "problemMatcher": []
+    },
+    {
+      "label": "compile curvature Vulkan shader",
+      "type": "shell",
+      "command": "glslangValidator",
+      "args": [
+        "-V",
+        "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorKernel.comp",
+        "-o",
+        "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorKernel.spv"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "compile Vulkan shaders",
+      "dependsOn": [
+        "compile voxelizer Vulkan shader",
+        "compile curvature Vulkan shader"
+      ],
+      "dependsOrder": "sequence",
       "problemMatcher": []
     },
 
@@ -86,7 +107,7 @@
 
     {
       "label": "build (debug - Windows)",
-      "dependsOn": ["compile shader"],
+      "dependsOn": ["compile Vulkan shaders"],
       "type": "shell",
       "command": "clang++",
       "args": [
@@ -112,6 +133,7 @@
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
+        "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorVulkan.cpp",
         "-o",
         "windowsApp.exe",
         "-L${env:VULKAN_SDK}\\Lib",
@@ -131,7 +153,7 @@
 
     {
       "label": "build (release - Windows)",
-      "dependsOn": ["compile shader"],
+      "dependsOn": ["compile Vulkan shaders"],
       "type": "shell",
       "command": "clang++",
       "args": [
@@ -156,6 +178,7 @@
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
+        "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorVulkan.cpp",
         "-o",
         "windowsApp.exe",
         "-L${env:VULKAN_SDK}\\Lib",
@@ -175,7 +198,7 @@
 
     {
       "label": "build (debug - Linux)",
-      "dependsOn": ["compile shader"],
+      "dependsOn": ["compile Vulkan shaders"],
       "type": "shell",
       "command": "g++",
       "args": [
@@ -195,6 +218,7 @@
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
+        "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorVulkan.cpp",
         "-o",
         "linuxApp",
         "-lOpenCL",
@@ -209,7 +233,7 @@
 
     {
       "label": "build (release - Linux)",
-      "dependsOn": ["compile shader"],
+      "dependsOn": ["compile Vulkan shaders"],
       "type": "shell",
       "command": "g++",
       "args": [
@@ -228,6 +252,7 @@
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
+        "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorVulkan.cpp",
         "-o",
         "linuxApp",
         "-lOpenCL",
@@ -310,7 +335,7 @@
       "dependsOn": [
         "compile cuda backend (debug)",
         "compile cuda kernel (debug)",
-        "compile shader"
+        "compile Vulkan shaders"
       ],
       "type": "shell",
       "command": "nvcc",
@@ -352,7 +377,7 @@
       "dependsOn": [
         "compile cuda backend (release)",
         "compile cuda kernel (release)",
-        "compile shader"
+        "compile Vulkan shaders"
       ],
       "type": "shell",
       "command": "nvcc",

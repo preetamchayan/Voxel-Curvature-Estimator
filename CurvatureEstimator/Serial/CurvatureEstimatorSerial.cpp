@@ -1,6 +1,7 @@
 #include "CurvatureEstimatorSerial.h"
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
@@ -33,16 +34,37 @@ void CurvatureEstimatorSerial::preprocessVoxels(std::vector<unsigned char>& voxe
 
 void CurvatureEstimatorSerial::computeInnerSpaceAndFrontierVoxels(
     std::vector<unsigned char>& voxels) {
+    // Temporary preprocessing diagnostics. Remove after Vulkan matches this reference path.
+    const auto printVoxelStateCounts = [&](const char* passName) {
+        std::array<size_t, 7> counts{};
+        size_t otherCount = 0;
+        for (unsigned char value : voxels) {
+            if (value < counts.size()) ++counts[value];
+            else ++otherCount;
+        }
+        std::cout << "Serial preprocessing after " << passName
+                  << ": [0=" << counts[0] << ", 1=" << counts[1]
+                  << ", 2=" << counts[2] << ", 3=" << counts[3]
+                  << ", 4=" << counts[4] << ", 5=" << counts[5]
+                  << ", 6=" << counts[6] << ", other=" << otherCount << "]"
+                  << std::endl;
+    };
+
     std::cout << "Computing inner space via plane 2\n";
     computeInnerSpaceVoxels(voxels, m_dims.width, m_dims.height, m_dims.depth, 2);
+    printVoxelStateCounts("inner-space plane 2");
     std::cout << "Computing inner space via plane 1\n";
     computeInnerSpaceVoxels(voxels, m_dims.depth, m_dims.width, m_dims.height, 1);
+    printVoxelStateCounts("inner-space plane 1");
     std::cout << "Computing inner space via plane 0\n";
     computeInnerSpaceVoxels(voxels, m_dims.height, m_dims.depth, m_dims.width, 0);
+    printVoxelStateCounts("inner-space plane 0");
     std::cout << "Marking interior voxels\n";
     markInteriorVoxels(voxels);
+    printVoxelStateCounts("mark interior");
     std::cout << "Marking frontier voxels\n";
     computeFrontierVoxels(voxels);
+    printVoxelStateCounts("mark frontier");
 }
 
 void CurvatureEstimatorSerial::computeInnerSpaceVoxels(
