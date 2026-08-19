@@ -1,4 +1,4 @@
-"""Build and compare Serial and OpenCL curvature results for armadillo.obj."""
+"""Build and compare Serial, OpenCL, and Vulkan curvature results for armadillo.obj."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from pathlib import Path
 
 SERIAL_ESTIMATOR = 0
 OPENCL_ESTIMATOR = 1
+VULKAN_ESTIMATOR = 2
 SCALE_FACTOR = "5"
 CURVE_LENGTH = "25"
 
@@ -24,9 +25,11 @@ EXECUTABLE = REPOSITORY_ROOT / "windowsApp.exe"
 INPUT_MESH = REPOSITORY_ROOT / "assets" / "armadillo.obj"
 SERIAL_LOG = OUTPUT_DIR / "curvature_serial.log"
 OPENCL_LOG = OUTPUT_DIR / "curvature_opencl.log"
-MISMATCH_CSV = RESULTS_DIR / "serial_opencl_curvature_mismatches.csv"
-TIMING_CSV = RESULTS_DIR / "serial_opencl_curvature_times.csv"
-PHASE_TIMING_CSV = RESULTS_DIR / "serial_opencl_curvature_phase_times.csv"
+VULKAN_LOG = OUTPUT_DIR / "curvature_vulkan.log"
+OPENCL_MISMATCH_CSV = RESULTS_DIR / "serial_opencl_curvature_mismatches.csv"
+VULKAN_MISMATCH_CSV = RESULTS_DIR / "serial_vulkan_curvature_mismatches.csv"
+TIMING_CSV = RESULTS_DIR / "serial_opencl_vulkan_curvature_times.csv"
+PHASE_TIMING_CSV = RESULTS_DIR / "serial_opencl_vulkan_curvature_phase_times.csv"
 CURVATURE_TIME_PATTERN = re.compile(r"CURVATURE_TIME_MS=(\d+)")
 PROFILE_PATTERN = re.compile(r"(CURVATURE_PROFILE_[A-Z_]+)=([0-9]+(?:\.[0-9]+)?)")
 
@@ -50,9 +53,24 @@ def run_command(command: list[str], *, input_text: str | None = None, env: dict[
     )
 
 
+def compile_vulkan_curvature_shader() -> None:
+    vulkan_sdk = require_environment("VULKAN_SDK")
+    source = REPOSITORY_ROOT / "CurvatureEstimator" / "Parallel" / "Vulkan" / "CurvatureEstimatorKernel.comp"
+    output = REPOSITORY_ROOT / "CurvatureEstimator" / "Parallel" / "Vulkan" / "CurvatureEstimatorKernel.spv"
+    validator = Path(vulkan_sdk) / "Bin" / "glslangValidator.exe"
+    command = [str(validator if validator.is_file() else "glslangValidator"), "-V", str(source), "-o", str(output)]
+    result = run_command(command)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Vulkan curvature shader compilation failed.\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+
 def build_release(estimator: int, name: str) -> None:
     vulkan_sdk = require_environment("VULKAN_SDK")
     opencl_sdk = require_environment("OPENCL_SDK")
+    if estimator == VULKAN_ESTIMATOR:
+        compile_vulkan_curvature_shader()
     source_files = [
         "main.cpp",
         "Helper/MeshLoader/MeshLoader.cpp",
@@ -67,6 +85,7 @@ def build_release(estimator: int, name: str) -> None:
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
+        "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorVulkan.cpp",
     ]
     result = run_command([
         "clang++",
@@ -142,22 +161,25 @@ def read_curvature_log(path: Path) -> dict[tuple[int, int, int], int]:
 
 
 def write_mismatches(serial_values: dict[tuple[int, int, int], int],
-                     opencl_values: dict[tuple[int, int, int], int]) -> int:
+                     backend_values: dict[tuple[int, int, int], int],
+                     backend_name: str,
+                     output_csv: Path) -> int:
+    backend_column = f"{backend_name.lower()}_curvature"
     mismatch_count = 0
-    with MISMATCH_CSV.open("w", newline="", encoding="utf-8") as csv_file:
+    with output_csv.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(
             csv_file,
-            fieldnames=("x", "y", "z", "serial_curvature", "opencl_curvature", "difference_type"),
+            fieldnames=("x", "y", "z", "serial_curvature", backend_column, "difference_type"),
         )
         writer.writeheader()
-        for coordinate in sorted(set(serial_values) | set(opencl_values)):
+        for coordinate in sorted(set(serial_values) | set(backend_values)):
             serial_value = serial_values.get(coordinate)
-            opencl_value = opencl_values.get(coordinate)
-            if serial_value == opencl_value:
+            backend_value = backend_values.get(coordinate)
+            if serial_value == backend_value:
                 continue
 
             difference_type = (
-                "missing_from_opencl" if opencl_value is None
+                f"missing_from_{backend_name.lower()}" if backend_value is None
                 else "missing_from_serial" if serial_value is None
                 else "curvature_mismatch"
             )
@@ -166,48 +188,42 @@ def write_mismatches(serial_values: dict[tuple[int, int, int], int],
                 "y": coordinate[1],
                 "z": coordinate[2],
                 "serial_curvature": "" if serial_value is None else serial_value,
-                "opencl_curvature": "" if opencl_value is None else opencl_value,
+                backend_column: "" if backend_value is None else backend_value,
                 "difference_type": difference_type,
             })
             mismatch_count += 1
     return mismatch_count
 
 
-def write_timing_summary(serial_time_ms: int, serial_wall_time_ms: float,
-                         opencl_time_ms: int, opencl_wall_time_ms: float) -> None:
-    speedup = serial_time_ms / opencl_time_ms if opencl_time_ms else None
+def write_timing_summary(results: dict[str, tuple[int, float, dict[str, float]]]) -> None:
+    serial_time_ms = results["serial"][0]
     with TIMING_CSV.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(
             csv_file,
-            fieldnames=("estimator", "curvature_time_ms", "process_wall_time_ms", "opencl_speedup_vs_serial"),
+            fieldnames=("estimator", "curvature_time_ms", "process_wall_time_ms", "speedup_vs_serial"),
         )
         writer.writeheader()
-        writer.writerow({
-            "estimator": "serial",
-            "curvature_time_ms": serial_time_ms,
-            "process_wall_time_ms": serial_wall_time_ms,
-            "opencl_speedup_vs_serial": "",
-        })
-        writer.writerow({
-            "estimator": "opencl",
-            "curvature_time_ms": opencl_time_ms,
-            "process_wall_time_ms": opencl_wall_time_ms,
-            "opencl_speedup_vs_serial": f"{speedup:.6f}" if speedup is not None else "",
-        })
+        for estimator, (curvature_time_ms, wall_time_ms, _) in results.items():
+            speedup = serial_time_ms / curvature_time_ms if estimator != "serial" and curvature_time_ms else None
+            writer.writerow({
+                "estimator": estimator,
+                "curvature_time_ms": curvature_time_ms,
+                "process_wall_time_ms": wall_time_ms,
+                "speedup_vs_serial": f"{speedup:.6f}" if speedup is not None else "",
+            })
 
 
-def write_phase_timing_summary(serial_profile: dict[str, float],
-                               opencl_profile: dict[str, float]) -> None:
-    phases = sorted(set(serial_profile) | set(opencl_profile))
+def write_phase_timing_summary(profiles: dict[str, dict[str, float]]) -> None:
+    phases = sorted(set().union(*(profile.keys() for profile in profiles.values())))
+    fieldnames = ("phase", *(f"{estimator}_ms" for estimator in profiles))
     with PHASE_TIMING_CSV.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=("phase", "serial_ms", "opencl_ms"))
+        writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
         writer.writeheader()
         for phase in phases:
-            writer.writerow({
-                "phase": phase,
-                "serial_ms": serial_profile.get(phase, ""),
-                "opencl_ms": opencl_profile.get(phase, ""),
-            })
+            row = {"phase": phase}
+            for estimator, profile in profiles.items():
+                row[f"{estimator}_ms"] = profile.get(phase, "")
+            writer.writerow(row)
 
 
 def main() -> int:
@@ -221,30 +237,55 @@ def main() -> int:
     try:
         print("Building and running Serial curvature estimator...")
         build_release(SERIAL_ESTIMATOR, "Serial")
-        serial_time_ms, serial_wall_time_ms, serial_profile = run_estimator("serial", SERIAL_LOG)
+        serial_result = run_estimator("serial", SERIAL_LOG)
 
         print("Building and running OpenCL curvature estimator...")
         build_release(OPENCL_ESTIMATOR, "OpenCL")
-        opencl_time_ms, opencl_wall_time_ms, opencl_profile = run_estimator("opencl", OPENCL_LOG)
+        opencl_result = run_estimator("opencl", OPENCL_LOG)
+
+        print("Building and running Vulkan curvature estimator...")
+        build_release(VULKAN_ESTIMATOR, "Vulkan")
+        vulkan_result = run_estimator("vulkan", VULKAN_LOG)
+
+        results = {
+            "serial": serial_result,
+            "opencl": opencl_result,
+            "vulkan": vulkan_result,
+        }
+        serial_time_ms, serial_wall_time_ms, serial_profile = serial_result
+        opencl_time_ms, opencl_wall_time_ms, opencl_profile = opencl_result
+        vulkan_time_ms, vulkan_wall_time_ms, vulkan_profile = vulkan_result
 
         serial_values = read_curvature_log(SERIAL_LOG)
         opencl_values = read_curvature_log(OPENCL_LOG)
-        mismatch_count = write_mismatches(serial_values, opencl_values)
-        write_timing_summary(serial_time_ms, serial_wall_time_ms, opencl_time_ms, opencl_wall_time_ms)
-        write_phase_timing_summary(serial_profile, opencl_profile)
+        vulkan_values = read_curvature_log(VULKAN_LOG)
+        opencl_mismatch_count = write_mismatches(serial_values, opencl_values, "opencl", OPENCL_MISMATCH_CSV)
+        vulkan_mismatch_count = write_mismatches(serial_values, vulkan_values, "vulkan", VULKAN_MISMATCH_CSV)
+        write_timing_summary(results)
+        write_phase_timing_summary({
+            "serial": serial_profile,
+            "opencl": opencl_profile,
+            "vulkan": vulkan_profile,
+        })
     except (OSError, RuntimeError, ValueError) as error:
         print(error, file=sys.stderr)
         return 1
 
     print(f"Serial curvature log: {SERIAL_LOG}")
     print(f"OpenCL curvature log: {OPENCL_LOG}")
+    print(f"Vulkan curvature log: {VULKAN_LOG}")
     print(f"Serial voxels: {len(serial_values)}")
     print(f"OpenCL voxels: {len(opencl_values)}")
-    print(f"Mismatches: {mismatch_count}")
+    print(f"Vulkan voxels: {len(vulkan_values)}")
+    print(f"OpenCL mismatches vs Serial: {opencl_mismatch_count}")
+    print(f"Vulkan mismatches vs Serial: {vulkan_mismatch_count}")
     print(f"Serial curvature time: {serial_time_ms} ms")
     print(f"OpenCL curvature time: {opencl_time_ms} ms")
+    print(f"Vulkan curvature time: {vulkan_time_ms} ms")
     print(f"OpenCL speedup vs Serial: {serial_time_ms / opencl_time_ms:.3f}x")
-    print(f"Mismatch CSV: {MISMATCH_CSV}")
+    print(f"Vulkan speedup vs Serial: {serial_time_ms / vulkan_time_ms:.3f}x")
+    print(f"OpenCL mismatch CSV: {OPENCL_MISMATCH_CSV}")
+    print(f"Vulkan mismatch CSV: {VULKAN_MISMATCH_CSV}")
     print(f"Timing CSV: {TIMING_CSV}")
     print(f"Phase timing CSV: {PHASE_TIMING_CSV}")
     return 0

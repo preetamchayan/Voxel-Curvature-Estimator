@@ -1,0 +1,462 @@
+#version 450
+
+layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
+layout(std430, binding = 0) buffer Voxels { uint data[]; } voxelsBuf;
+layout(std430, binding = 1) buffer Curvatures { int data[]; } curvaturesBuf;
+layout(std430, binding = 2) buffer SurfaceVoxelIds { int data[]; } surfaceIdsBuf;
+
+// Ten 3-bit voxel states per uint; the top two bits are unused.
+const uint VOXELS_PER_WORD = 10u;
+const uint VOXEL_BITS = 3u;
+const uint VOXEL_MASK = 0x7u;
+
+uint loadVoxel(int voxelID) {
+    const uint index = uint(voxelID);
+    return (voxelsBuf.data[index / VOXELS_PER_WORD] >>
+            ((index % VOXELS_PER_WORD) * VOXEL_BITS)) & VOXEL_MASK;
+}
+
+// Atomic CAS preserves neighboring packed voxels when separate invocations update
+// different fields that share a uint.
+void storeVoxel(int voxelID, uint value) {
+    const uint index = uint(voxelID);
+    const uint wordIndex = index / VOXELS_PER_WORD;
+    const uint shift = (index % VOXELS_PER_WORD) * VOXEL_BITS;
+    const uint mask = VOXEL_MASK << shift;
+    uint expected = voxelsBuf.data[wordIndex];
+    for (;;) {
+        const uint replacement = (expected & ~mask) | ((value & VOXEL_MASK) << shift);
+        const uint observed = atomicCompSwap(voxelsBuf.data[wordIndex], expected, replacement);
+        if (observed == expected) return;
+        expected = observed;
+    }
+}
+
+layout(push_constant) uniform PushConstants { int operation; int width; int height; int depth; int plane; int curveLength; int surfaceVoxelCount; int padding; } pc;
+
+const int INT_MAX_VALUE = 2147483647;
+const int INT_MIN_VALUE = (-2147483647 - 1);
+const int INVALID_CHAIN_CODE = 255;
+const int INVALID_VOXEL_ID = -1;
+
+struct Candidate {
+    int voxelID;
+    int chainCode;
+};
+
+// Private per-invocation curve buffer. Keeping this out of function parameters
+// avoids glslang-generated array copies at call sites.
+int gCurve3D[2 * 32 + 1];
+
+int getVoxelID(ivec3 point, int R, int C) {
+    return point.x + point.y * R + point.z * R * C;
+}
+
+ivec3 getCoordinates(int voxelID, int R, int C) {
+    int t = voxelID % (R * C);
+    return ivec3(t % R, t / R, voxelID / (R * C));
+}
+
+bool inGrid(int x, int y, int z, int R, int C, int D) {
+    return x >= 0 && x < R && y >= 0 && y < C && z >= 0 && z < D;
+}
+
+bool pointEqual(ivec3 a, ivec3 b) {
+    return a.x == b.x && a.y == b.y && a.z == b.z;
+}
+
+void setInvalidCandidate(inout Candidate c) {
+    c.voxelID = INVALID_VOXEL_ID;
+    c.chainCode = INVALID_CHAIN_CODE;
+}
+
+bool isInvalidCandidate(Candidate c) {
+    return c.chainCode == INVALID_CHAIN_CODE || c.voxelID == INVALID_VOXEL_ID;
+}
+
+bool isSurface(ivec3 point, int R, int C, int D) {
+    return inGrid(point.x, point.y, point.z, R, C, D) &&
+           loadVoxel(getVoxelID(point, R, C)) == 1u;
+}
+
+bool isInterior(ivec3 point, int R, int C, int D) {
+    return inGrid(point.x, point.y, point.z, R, C, D) &&
+           loadVoxel(getVoxelID(point, R, C)) == 2u;
+}
+
+int getChainCode(ivec2 neighbor, ivec2 voxel) {
+    const ivec2 dir = neighbor - voxel;
+    if (dir.x == 1 && dir.y == 0) return 0;
+    if (dir.x == 1 && dir.y == 1) return 1;
+    if (dir.x == 0 && dir.y == 1) return 2;
+    if (dir.x == -1 && dir.y == 1) return 3;
+    if (dir.x == -1 && dir.y == 0) return 4;
+    if (dir.x == -1 && dir.y == -1) return 5;
+    if (dir.x == 0 && dir.y == -1) return 6;
+    if (dir.x == 1 && dir.y == -1) return 7;
+    return INVALID_CHAIN_CODE;
+}
+
+void addNeighbor(ivec3 voxel, ivec3 neighbor, int neighborIndex, int plane, inout Candidate neighbors[8], int R, int C) {
+    neighbors[neighborIndex].voxelID = getVoxelID(neighbor, R, C);
+    switch (plane / 3) {
+        case 0:
+            neighbors[neighborIndex].chainCode = getChainCode(ivec2(neighbor.x, neighbor.y), ivec2(voxel.x, voxel.y));
+            break;
+        case 1:
+            neighbors[neighborIndex].chainCode = getChainCode(ivec2(neighbor.y, neighbor.z), ivec2(voxel.y, voxel.z));
+            break;
+        case 2:
+            neighbors[neighborIndex].chainCode = getChainCode(ivec2(neighbor.z, neighbor.x), ivec2(voxel.z, voxel.x));
+            break;
+    }
+}
+
+void getNeighborsInPlane(ivec3 voxel, int plane, int R, int C, int D, out Candidate neighbors[8]) {
+    for (int n = 0; n < 8; ++n) {
+        setInvalidCandidate(neighbors[n]);
+    }
+
+    const int x = voxel.x;
+    const int y = voxel.y;
+    const int z = voxel.z;
+    const int xmin = 0, xmax = R - 1;
+    const int ymin = 0, ymax = C - 1;
+    const int zmin = 0, zmax = D - 1;
+
+    switch (plane) {
+        case 0:
+            if (x != xmax && isSurface(ivec3(x + 1, y, z), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y, z), 0, plane, neighbors, R, C);
+            if (x != xmin && isSurface(ivec3(x - 1, y, z), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y, z), 1, plane, neighbors, R, C);
+            if (y != ymax && isSurface(ivec3(x, y + 1, z), R, C, D)) addNeighbor(voxel, ivec3(x, y + 1, z), 2, plane, neighbors, R, C);
+            if (y != ymin && isSurface(ivec3(x, y - 1, z), R, C, D)) addNeighbor(voxel, ivec3(x, y - 1, z), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && isSurface(ivec3(x + 1, y + 1, z), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y + 1, z), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && isSurface(ivec3(x + 1, y - 1, z), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y - 1, z), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && isSurface(ivec3(x - 1, y + 1, z), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y + 1, z), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && isSurface(ivec3(x - 1, y - 1, z), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y - 1, z), 7, plane, neighbors, R, C);
+            break;
+        case 1:
+            if (y != ymax && (isSurface(ivec3(x, y + 1, z), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y + 1, z), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x, y + 1, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x, y + 1, z + 1), R, C, D))) && !isInterior(ivec3(x, y + 1, z), R, C, D))) addNeighbor(voxel, ivec3(x, y + 1, z), 0, plane, neighbors, R, C);
+            if (y != ymin && (isSurface(ivec3(x, y - 1, z), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y - 1, z), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y - 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x, y - 1, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x, y - 1, z + 1), R, C, D))) && !isInterior(ivec3(x, y - 1, z), R, C, D))) addNeighbor(voxel, ivec3(x, y - 1, z), 1, plane, neighbors, R, C);
+            if (x != xmax && z != zmin && isSurface(ivec3(x + 1, y, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y, z - 1), 2, plane, neighbors, R, C);
+            if (x != xmin && z != zmax && isSurface(ivec3(x - 1, y, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y, z + 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmin && (isSurface(ivec3(x + 1, y + 1, z - 1), R, C, D) || (isSurface(ivec3(x, y + 1, z - 1), R, C, D) && isSurface(ivec3(x + 1, y + 1, z), R, C, D) && !isInterior(ivec3(x + 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y + 1, z - 1), 4, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmax && (isSurface(ivec3(x - 1, y + 1, z + 1), R, C, D) || (isSurface(ivec3(x, y + 1, z + 1), R, C, D) && isSurface(ivec3(x - 1, y + 1, z), R, C, D) && !isInterior(ivec3(x - 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y + 1, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmin && (isSurface(ivec3(x + 1, y - 1, z - 1), R, C, D) || (isSurface(ivec3(x, y - 1, z - 1), R, C, D) && isSurface(ivec3(x + 1, y - 1, z), R, C, D) && !isInterior(ivec3(x + 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y - 1, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmax && (isSurface(ivec3(x - 1, y - 1, z + 1), R, C, D) || (isSurface(ivec3(x, y - 1, z + 1), R, C, D) && isSurface(ivec3(x - 1, y - 1, z), R, C, D) && !isInterior(ivec3(x - 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y - 1, z + 1), 7, plane, neighbors, R, C);
+            break;
+        case 2:
+            if (y != ymax && (isSurface(ivec3(x, y + 1, z), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y + 1, z), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x, y + 1, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x, y + 1, z + 1), R, C, D))) && !isInterior(ivec3(x, y + 1, z), R, C, D))) addNeighbor(voxel, ivec3(x, y + 1, z), 0, plane, neighbors, R, C);
+            if (y != ymin && (isSurface(ivec3(x, y - 1, z), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y - 1, z), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y - 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x, y - 1, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x, y - 1, z + 1), R, C, D))) && !isInterior(ivec3(x, y - 1, z), R, C, D))) addNeighbor(voxel, ivec3(x, y - 1, z), 1, plane, neighbors, R, C);
+            if (x != xmax && z != zmax && isSurface(ivec3(x + 1, y, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y, z + 1), 2, plane, neighbors, R, C);
+            if (x != xmin && z != zmin && isSurface(ivec3(x - 1, y, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y, z - 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmax && (isSurface(ivec3(x + 1, y + 1, z + 1), R, C, D) || (isSurface(ivec3(x, y + 1, z + 1), R, C, D) && isSurface(ivec3(x + 1, y + 1, z), R, C, D) && !isInterior(ivec3(x + 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmax && (isSurface(ivec3(x + 1, y - 1, z + 1), R, C, D) || (isSurface(ivec3(x, y - 1, z + 1), R, C, D) && isSurface(ivec3(x + 1, y - 1, z), R, C, D) && !isInterior(ivec3(x + 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y - 1, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmin && (isSurface(ivec3(x - 1, y + 1, z - 1), R, C, D) || (isSurface(ivec3(x - 1, y + 1, z), R, C, D) && isSurface(ivec3(x, y + 1, z - 1), R, C, D) && !isInterior(ivec3(x - 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y + 1, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmin && (isSurface(ivec3(x - 1, y - 1, z - 1), R, C, D) || (isSurface(ivec3(x, y - 1, z - 1), R, C, D) && isSurface(ivec3(x - 1, y - 1, z), R, C, D) && !isInterior(ivec3(x - 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y - 1, z - 1), 7, plane, neighbors, R, C);
+            break;
+        case 3:
+            if (y != ymax && isSurface(ivec3(x, y + 1, z), R, C, D)) addNeighbor(voxel, ivec3(x, y + 1, z), 0, plane, neighbors, R, C);
+            if (y != ymin && isSurface(ivec3(x, y - 1, z), R, C, D)) addNeighbor(voxel, ivec3(x, y - 1, z), 1, plane, neighbors, R, C);
+            if (z != zmax && isSurface(ivec3(x, y, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x, y, z + 1), 2, plane, neighbors, R, C);
+            if (z != zmin && isSurface(ivec3(x, y, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x, y, z - 1), 3, plane, neighbors, R, C);
+            if (y != ymax && z != zmax && isSurface(ivec3(x, y + 1, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (y != ymax && z != zmin && isSurface(ivec3(x, y + 1, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x, y + 1, z - 1), 5, plane, neighbors, R, C);
+            if (y != ymin && z != zmax && isSurface(ivec3(x, y - 1, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x, y - 1, z + 1), 6, plane, neighbors, R, C);
+            if (y != ymin && z != zmin && isSurface(ivec3(x, y - 1, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x, y - 1, z - 1), 7, plane, neighbors, R, C);
+            break;
+        case 4:
+            if (z != zmax && (isSurface(ivec3(x, y, z + 1), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y, z + 1), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y, z + 1), R, C, D))) && ((y != ymin && isSurface(ivec3(x, y - 1, z + 1), R, C, D)) || (y != ymax && isSurface(ivec3(x, y + 1, z + 1), R, C, D))) && !isInterior(ivec3(x, y, z + 1), R, C, D))) addNeighbor(voxel, ivec3(x, y, z + 1), 0, plane, neighbors, R, C);
+            if (z != zmin && (isSurface(ivec3(x, y, z - 1), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y, z - 1), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y, z - 1), R, C, D))) && ((y != ymin && isSurface(ivec3(x, y - 1, z - 1), R, C, D)) || (y != ymax && isSurface(ivec3(x, y + 1, z - 1), R, C, D))) && !isInterior(ivec3(x, y, z - 1), R, C, D))) addNeighbor(voxel, ivec3(x, y, z - 1), 1, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && isSurface(ivec3(x - 1, y + 1, z), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y + 1, z), 2, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && isSurface(ivec3(x + 1, y - 1, z), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y - 1, z), 3, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmax && (isSurface(ivec3(x - 1, y + 1, z + 1), R, C, D) || (isSurface(ivec3(x, y + 1, z + 1), R, C, D) && isSurface(ivec3(x - 1, y, z + 1), R, C, D) && !isInterior(ivec3(x - 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmin && (isSurface(ivec3(x - 1, y + 1, z - 1), R, C, D) || (isSurface(ivec3(x, y + 1, z - 1), R, C, D) && isSurface(ivec3(x - 1, y, z - 1), R, C, D) && !isInterior(ivec3(x - 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y + 1, z - 1), 5, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmax && (isSurface(ivec3(x + 1, y - 1, z + 1), R, C, D) || (isSurface(ivec3(x, y - 1, z + 1), R, C, D) && isSurface(ivec3(x + 1, y, z + 1), R, C, D) && !isInterior(ivec3(x + 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y - 1, z + 1), 6, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmin && (isSurface(ivec3(x + 1, y - 1, z - 1), R, C, D) || (isSurface(ivec3(x, y - 1, z - 1), R, C, D) && isSurface(ivec3(x + 1, y, z - 1), R, C, D) && !isInterior(ivec3(x + 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y - 1, z - 1), 7, plane, neighbors, R, C);
+            break;
+        case 5:
+            if (z != zmax && (isSurface(ivec3(x, y, z + 1), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y, z + 1), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y, z + 1), R, C, D))) && ((y != ymin && isSurface(ivec3(x, y - 1, z + 1), R, C, D)) || (y != ymax && isSurface(ivec3(x, y + 1, z + 1), R, C, D))) && !isInterior(ivec3(x, y, z + 1), R, C, D))) addNeighbor(voxel, ivec3(x, y, z + 1), 0, plane, neighbors, R, C);
+            if (z != zmin && (isSurface(ivec3(x, y, z - 1), R, C, D) || ((x != xmin && isSurface(ivec3(x - 1, y, z - 1), R, C, D)) || (x != xmax && isSurface(ivec3(x + 1, y, z - 1), R, C, D))) && ((y != ymin && isSurface(ivec3(x, y - 1, z - 1), R, C, D)) || (y != ymax && isSurface(ivec3(x, y + 1, z - 1), R, C, D))) && !isInterior(ivec3(x, y, z - 1), R, C, D))) addNeighbor(voxel, ivec3(x, y, z - 1), 1, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && isSurface(ivec3(x + 1, y + 1, z), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y + 1, z), 2, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && isSurface(ivec3(x - 1, y - 1, z), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y - 1, z), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmax && (isSurface(ivec3(x + 1, y + 1, z + 1), R, C, D) || (isSurface(ivec3(x, y + 1, z + 1), R, C, D) && isSurface(ivec3(x + 1, y, z + 1), R, C, D) && !isInterior(ivec3(x + 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmin && (isSurface(ivec3(x + 1, y + 1, z - 1), R, C, D) || (isSurface(ivec3(x + 1, y, z - 1), R, C, D) && isSurface(ivec3(x, y + 1, z - 1), R, C, D) && !isInterior(ivec3(x + 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y + 1, z - 1), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmax && (isSurface(ivec3(x - 1, y - 1, z + 1), R, C, D) || (isSurface(ivec3(x, y - 1, z + 1), R, C, D) && isSurface(ivec3(x - 1, y, z + 1), R, C, D) && !isInterior(ivec3(x - 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y - 1, z + 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmin && (isSurface(ivec3(x - 1, y - 1, z - 1), R, C, D) || (isSurface(ivec3(x, y - 1, z - 1), R, C, D) && isSurface(ivec3(x - 1, y, z - 1), R, C, D) && !isInterior(ivec3(x - 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y - 1, z - 1), 7, plane, neighbors, R, C);
+            break;
+        case 6:
+            if (z != zmax && isSurface(ivec3(x, y, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x, y, z + 1), 0, plane, neighbors, R, C);
+            if (z != zmin && isSurface(ivec3(x, y, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x, y, z - 1), 1, plane, neighbors, R, C);
+            if (x != xmax && isSurface(ivec3(x + 1, y, z), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y, z), 2, plane, neighbors, R, C);
+            if (x != xmin && isSurface(ivec3(x - 1, y, z), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y, z), 3, plane, neighbors, R, C);
+            if (x != xmax && z != zmax && isSurface(ivec3(x + 1, y, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmin && z != zmax && isSurface(ivec3(x - 1, y, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmax && z != zmin && isSurface(ivec3(x + 1, y, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x + 1, y, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && z != zmin && isSurface(ivec3(x - 1, y, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x - 1, y, z - 1), 7, plane, neighbors, R, C);
+            break;
+        case 7:
+            if (x != xmax && (isSurface(ivec3(x + 1, y, z), R, C, D) || ((y != ymin && isSurface(ivec3(x + 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(ivec3(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x + 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x + 1, y, z + 1), R, C, D))) && !isInterior(ivec3(x + 1, y, z), R, C, D))) addNeighbor(voxel, ivec3(x + 1, y, z), 0, plane, neighbors, R, C);
+            if (x != xmin && (isSurface(ivec3(x - 1, y, z), R, C, D) || ((y != ymin && isSurface(ivec3(x - 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(ivec3(x - 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x - 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x - 1, y, z + 1), R, C, D))) && !isInterior(ivec3(x - 1, y, z), R, C, D))) addNeighbor(voxel, ivec3(x - 1, y, z), 1, plane, neighbors, R, C);
+            if (y != ymin && z != zmax && isSurface(ivec3(x, y - 1, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x, y - 1, z + 1), 2, plane, neighbors, R, C);
+            if (y != ymax && z != zmin && isSurface(ivec3(x, y + 1, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x, y + 1, z - 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmax && (isSurface(ivec3(x + 1, y - 1, z + 1), R, C, D) || (isSurface(ivec3(x + 1, y, z + 1), R, C, D) && isSurface(ivec3(x + 1, y - 1, z), R, C, D) && !isInterior(ivec3(x + 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y - 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmax && (isSurface(ivec3(x - 1, y - 1, z + 1), R, C, D) || (isSurface(ivec3(x - 1, y, z + 1), R, C, D) && isSurface(ivec3(x - 1, y - 1, z), R, C, D) && !isInterior(ivec3(x - 1, y - 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y - 1, z + 1), 5, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmin && (isSurface(ivec3(x + 1, y + 1, z - 1), R, C, D) || (isSurface(ivec3(x + 1, y, z - 1), R, C, D) && isSurface(ivec3(x + 1, y + 1, z), R, C, D) && !isInterior(ivec3(x + 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y + 1, z - 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmin && (isSurface(ivec3(x - 1, y + 1, z - 1), R, C, D) || (isSurface(ivec3(x - 1, y, z - 1), R, C, D) && isSurface(ivec3(x - 1, y + 1, z), R, C, D) && !isInterior(ivec3(x - 1, y + 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y + 1, z - 1), 7, plane, neighbors, R, C);
+            break;
+        case 8:
+            if (x != xmax && (isSurface(ivec3(x + 1, y, z), R, C, D) || ((y != ymin && isSurface(ivec3(x + 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(ivec3(x + 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x + 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x + 1, y, z + 1), R, C, D))) && !isInterior(ivec3(x + 1, y, z), R, C, D))) addNeighbor(voxel, ivec3(x + 1, y, z), 0, plane, neighbors, R, C);
+            if (x != xmin && (isSurface(ivec3(x - 1, y, z), R, C, D) || ((y != ymin && isSurface(ivec3(x - 1, y - 1, z), R, C, D)) || (y != ymax && isSurface(ivec3(x - 1, y + 1, z), R, C, D))) && ((z != zmin && isSurface(ivec3(x - 1, y, z - 1), R, C, D)) || (z != zmax && isSurface(ivec3(x - 1, y, z + 1), R, C, D))) && !isInterior(ivec3(x - 1, y, z), R, C, D))) addNeighbor(voxel, ivec3(x - 1, y, z), 1, plane, neighbors, R, C);
+            if (y != ymax && z != zmax && isSurface(ivec3(x, y + 1, z + 1), R, C, D)) addNeighbor(voxel, ivec3(x, y + 1, z + 1), 2, plane, neighbors, R, C);
+            if (y != ymin && z != zmin && isSurface(ivec3(x, y - 1, z - 1), R, C, D)) addNeighbor(voxel, ivec3(x, y - 1, z - 1), 3, plane, neighbors, R, C);
+            if (x != xmax && y != ymax && z != zmax && (isSurface(ivec3(x + 1, y + 1, z + 1), R, C, D) || (isSurface(ivec3(x + 1, y, z + 1), R, C, D) && isSurface(ivec3(x + 1, y + 1, z), R, C, D) && !isInterior(ivec3(x + 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y + 1, z + 1), 4, plane, neighbors, R, C);
+            if (x != xmax && y != ymin && z != zmin && (isSurface(ivec3(x + 1, y - 1, z - 1), R, C, D) || (isSurface(ivec3(x + 1, y, z - 1), R, C, D) && isSurface(ivec3(x + 1, y - 1, z), R, C, D) && !isInterior(ivec3(x + 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x + 1, y - 1, z - 1), 5, plane, neighbors, R, C);
+            if (x != xmin && y != ymax && z != zmax && (isSurface(ivec3(x - 1, y + 1, z + 1), R, C, D) || (isSurface(ivec3(x - 1, y, z + 1), R, C, D) && isSurface(ivec3(x - 1, y + 1, z), R, C, D) && !isInterior(ivec3(x - 1, y + 1, z + 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y + 1, z + 1), 6, plane, neighbors, R, C);
+            if (x != xmin && y != ymin && z != zmin && (isSurface(ivec3(x - 1, y - 1, z - 1), R, C, D) || (isSurface(ivec3(x - 1, y, z - 1), R, C, D) && isSurface(ivec3(x - 1, y - 1, z), R, C, D) && !isInterior(ivec3(x - 1, y - 1, z - 1), R, C, D)))) addNeighbor(voxel, ivec3(x - 1, y - 1, z - 1), 7, plane, neighbors, R, C);
+            break;
+    }
+}
+
+bool findNextLevelVoxels(int step, int plane, inout Candidate curve[8], int curveLength, int R, int C, int D) {
+    ivec3 voxel = getCoordinates(gCurve3D[curveLength + step], R, C);
+    int absoluteStep = abs(step);
+    getNeighborsInPlane(voxel, plane, R, C, D, curve);
+
+    int count = 0;
+    for (int j = 0; j < 8; ++j) {
+        for (int k = curveLength - absoluteStep; k <= curveLength + absoluteStep; ++k) {
+            if (gCurve3D[k] == curve[j].voxelID) {
+                setInvalidCandidate(curve[j]);
+                break;
+            }
+        }
+        if (!isInvalidCandidate(curve[j])) ++count;
+        if (count > 3) break;
+    }
+    return !(count == 0 || count > 3);
+}
+
+int computeCurvatureOfDigitalCurve2D(int plane, ivec3 voxel, inout Candidate trailCurve[8], inout Candidate leadCurve[8], int curveLength, int R, int C, int D, inout int curvature) {
+    int prevTrailChainCode = INVALID_CHAIN_CODE;
+    int prevLeadChainCode = INVALID_CHAIN_CODE;
+    int curvatureSum = 0;
+    int i = 1;
+
+    for (; i <= curveLength; ++i) {
+        int trailChainCode = INVALID_CHAIN_CODE;
+        int leadChainCode = INVALID_CHAIN_CODE;
+        int minDiff = int(INVALID_CHAIN_CODE);
+
+        for (int j = 0; j < 8; ++j) {
+            if (isInvalidCandidate(trailCurve[j])) continue;
+            ivec3 voxel1 = getCoordinates(trailCurve[j].voxelID, R, C);
+            int trailChain = trailCurve[j].chainCode;
+
+            for (int k = 0; k < 8; ++k) {
+                if (isInvalidCandidate(leadCurve[k])) continue;
+                ivec3 voxel2 = getCoordinates(leadCurve[k].voxelID, R, C);
+                int leadChain = leadCurve[k].chainCode < 4 ? leadCurve[k].chainCode + 4 : leadCurve[k].chainCode - 4;
+
+                int distX12 = max(max(abs(voxel1.x - voxel2.x), abs(voxel1.y - voxel2.y)), abs(voxel1.z - voxel2.z));
+                int distX10 = max(max(abs(voxel1.x - voxel.x), abs(voxel1.y - voxel.y)), abs(voxel1.z - voxel.z));
+                int distX20 = max(max(abs(voxel.x - voxel2.x), abs(voxel.y - voxel2.y)), abs(voxel.z - voxel2.z));
+                if ((distX10 == 1 || distX20 == 1) && i != 1) continue;
+                if ((distX10 != 1 || distX20 != 1) && distX12 <= 1) continue;
+
+                int diff = abs(int(leadChain) - int(trailChain));
+                diff = min(diff, 8 - diff);
+                if (diff < minDiff) {
+                    trailChainCode = trailChain;
+                    leadChainCode = leadChain;
+                    minDiff = diff;
+                    gCurve3D[curveLength - i] = getVoxelID(voxel1, R, C);
+                    gCurve3D[curveLength + i] = getVoxelID(voxel2, R, C);
+                }
+            }
+        }
+
+        if (trailChainCode == INVALID_CHAIN_CODE || leadChainCode == INVALID_CHAIN_CODE) break;
+
+        if (prevTrailChainCode != INVALID_CHAIN_CODE && prevLeadChainCode != INVALID_CHAIN_CODE) {
+            int tmp = abs(int(trailChainCode) - int(leadChainCode));
+            tmp = min(tmp, 8 - tmp);
+            int tmp1 = abs(int(trailChainCode) - int(prevLeadChainCode));
+            tmp1 = min(tmp1, 8 - tmp1);
+            tmp = min(tmp, tmp1);
+            tmp1 = abs(int(prevTrailChainCode) - int(leadChainCode));
+            tmp1 = min(tmp1, 8 - tmp1);
+            tmp = min(tmp, tmp1);
+            tmp1 = abs(int(prevTrailChainCode) - int(prevLeadChainCode));
+            tmp1 = min(tmp1, 8 - tmp1);
+            tmp = min(tmp, tmp1);
+            curvatureSum += tmp;
+        }
+
+        prevLeadChainCode = leadChainCode;
+        prevTrailChainCode = trailChainCode;
+
+        if (i == curveLength) continue;
+        if (!findNextLevelVoxels(-i, plane, trailCurve, curveLength, R, C, D)) break;
+        if (!findNextLevelVoxels(i, plane, leadCurve, curveLength, R, C, D)) break;
+    }
+
+    if (i != curveLength + 1) return 0;
+    curvature = min(curvatureSum, curvature);
+    return 1;
+}
+
+int computeCurvatureOfDigitalCurve3D(ivec3 voxel, int plane, int curveLength, int R, int C, int D) {
+    gCurve3D[curveLength] = getVoxelID(voxel, R, C);
+
+    int curvature = INT_MAX_VALUE;
+    Candidate headCurve[8];
+    Candidate trailCurve[8];
+    Candidate leadCurve[8];
+
+    getNeighborsInPlane(voxel, plane, R, C, D, headCurve);
+    int count = 0;
+    for (int i = 0; i < 8; ++i) {
+        if (!isInvalidCandidate(headCurve[i])) ++count;
+    }
+    if (count == 0 || count > 3) return -1;
+
+    for (int i = 0; i < 7; ++i) {
+        if (isInvalidCandidate(headCurve[i])) continue;
+        for (int j = i + 1; j < 8; ++j) {
+            if (isInvalidCandidate(headCurve[j])) continue;
+
+            for (int k = 0; k < 8; ++k) {
+                setInvalidCandidate(trailCurve[k]);
+                setInvalidCandidate(leadCurve[k]);
+            }
+            trailCurve[0].voxelID = headCurve[i].voxelID;
+            trailCurve[0].chainCode = headCurve[i].chainCode;
+            leadCurve[0].voxelID = headCurve[j].voxelID;
+            leadCurve[0].chainCode = headCurve[j].chainCode;
+
+            if (computeCurvatureOfDigitalCurve2D(plane, voxel, trailCurve, leadCurve, curveLength, R, C, D, curvature) == 0) continue;
+            if (curvature == 0) return 0;
+        }
+    }
+
+    return curvature == INT_MAX_VALUE ? -1 : curvature;
+}
+
+int computeCurvatureAtVoxel(ivec3 voxel, int curveLength, int R, int C, int D) {
+    int maxCurvature = INT_MIN_VALUE;
+    int minCurvature = INT_MAX_VALUE;
+
+    for (int plane = 0; plane < 9; ++plane) {
+        int curvature = computeCurvatureOfDigitalCurve3D(voxel, plane, curveLength, R, C, D);
+        if (curvature == -1) continue;
+        maxCurvature = max(maxCurvature, curvature);
+        minCurvature = min(minCurvature, curvature);
+    }
+
+    if (maxCurvature == INT_MIN_VALUE || minCurvature == INT_MAX_VALUE) return INT_MAX_VALUE;
+    return maxCurvature + minCurvature;
+}
+
+int innerSpaceVoxelID(int i, int j, int k, int R, int C, int D, int plane) {
+    int id = 0;
+    int W = 0;
+    switch (plane) {
+        case 0: id = i * D + j * R * D; W = 1;     break;
+        case 1: id = i * C * D + j;     W = C;     break;
+        default: id = i + j * R;        W = R * C; break;
+    }
+    return id + k * W;
+}
+
+void computeInnerSpaceVoxels(int R, int C, int D, int plane) {
+    const int x = int(gl_GlobalInvocationID.x);
+    const int y = int(gl_GlobalInvocationID.y);
+    if (x >= R || y >= C) return;
+
+    int count = 0;
+    int z = 0;
+
+    for (; z < D; ++z) {
+        const int id = innerSpaceVoxelID(x, y, z, R, C, D, plane);
+        if (loadVoxel(id) == 1u) {
+            const bool nextIsVoxel = (z != D - 1) && loadVoxel(innerSpaceVoxelID(x, y, z + 1, R, C, D, plane)) == 1u;
+            if (z == D - 1 || nextIsVoxel) continue;
+            if (!nextIsVoxel) ++count;
+        } else if ((count & 1) == 1) {
+            storeVoxel(id, loadVoxel(id) + 2u);
+        }
+    }
+
+    if ((count & 1) == 1) {
+        --z;
+        while (z >= 0 && loadVoxel(innerSpaceVoxelID(x, y, z, R, C, D, plane)) != 1u) {
+            const int id = innerSpaceVoxelID(x, y, z, R, C, D, plane);
+            storeVoxel(id, loadVoxel(id) - 2u);
+            --z;
+        }
+    }
+}
+
+void markInteriorVoxels(int R, int C, int D) {
+    const int x = int(gl_GlobalInvocationID.x);
+    const int y = int(gl_GlobalInvocationID.y);
+    const int z = int(gl_GlobalInvocationID.z);
+    if (x >= R || y >= C || z >= D) return;
+
+    const int id = getVoxelID(ivec3(x, y, z), R, C);
+    if (loadVoxel(id) == 2u || loadVoxel(id) == 4u) storeVoxel(id, 0u);
+    else if (loadVoxel(id) == 6u) storeVoxel(id, 2u);
+}
+
+void computeFrontierVoxels(int R, int C, int D) {
+    const int x = int(gl_GlobalInvocationID.x);
+    const int y = int(gl_GlobalInvocationID.y);
+    const int z = int(gl_GlobalInvocationID.z);
+    if (x >= R || y >= C || z >= D) return;
+
+    const int id = getVoxelID(ivec3(x, y, z), R, C);
+    if (loadVoxel(id) != 1u) return;
+
+    const int slice = R * C;
+    if (x == 0 || loadVoxel(id - 1) == 0u) return;
+    if (x == R - 1 || loadVoxel(id + 1) == 0u) return;
+    if (y == 0 || loadVoxel(id - R) == 0u) return;
+    if (y == C - 1 || loadVoxel(id + R) == 0u) return;
+    if (z == 0 || loadVoxel(id - slice) == 0u) return;
+    if (z == D - 1 || loadVoxel(id + slice) == 0u) return;
+    storeVoxel(id, 2u);
+}
+
+
+void estimateCurvature(int surfaceVoxelCount,
+                       int curveLength,
+                       int R,
+                       int C,
+                       int D) {
+    const int surfaceIndex = int(gl_GlobalInvocationID.x);
+    if (surfaceIndex >= surfaceVoxelCount) return;
+    const int voxelID = surfaceIdsBuf.data[surfaceIndex];
+
+    if (curveLength > 32 || loadVoxel(voxelID) != 1u) {
+        curvaturesBuf.data[surfaceIndex] = INT_MAX_VALUE;
+        return;
+    }
+
+    const ivec3 voxel = getCoordinates(voxelID, R, C);
+    curvaturesBuf.data[surfaceIndex] = computeCurvatureAtVoxel(voxel, curveLength, R, C, D);
+}
+
+void main() {
+    if (pc.operation == 0u) {
+        if (pc.plane == 2) computeInnerSpaceVoxels(pc.width, pc.height, pc.depth, 2);
+        else if (pc.plane == 1) computeInnerSpaceVoxels(pc.depth, pc.width, pc.height, 1);
+        else computeInnerSpaceVoxels(pc.height, pc.depth, pc.width, 0);
+    } else if (pc.operation == 1) {
+        markInteriorVoxels(pc.width, pc.height, pc.depth);
+    } else if (pc.operation == 2) {
+        computeFrontierVoxels(pc.width, pc.height, pc.depth);
+    } else if (pc.operation == 3) {
+        estimateCurvature(pc.surfaceVoxelCount, pc.curveLength, pc.width, pc.height, pc.depth);
+    }
+}
