@@ -72,6 +72,42 @@
     },
 
     {
+      "label": "compile curvature cuda backend (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorCuda.cu",
+        "-o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorCuda.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile curvature cuda kernel (debug)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O0",
+        "-g",
+        "-c",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorKernel.cu",
+        "-o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
       "label": "compile cuda backend (release)",
       "type": "shell",
       "command": "nvcc",
@@ -100,6 +136,40 @@
         "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.cu",
         "-o",
         "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile curvature cuda backend (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorCuda.cu",
+        "-o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorCuda.o",
+        "-I/usr/local/cuda/include"
+      ],
+      "problemMatcher": []
+    },
+
+    {
+      "label": "compile curvature cuda kernel (release)",
+      "type": "shell",
+      "command": "nvcc",
+      "args": [
+        "-ccbin",
+        "g++",
+        "-O2",
+        "-c",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorKernel.cu",
+        "-o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorKernel.o",
         "-I/usr/local/cuda/include"
       ],
       "problemMatcher": []
@@ -337,6 +407,8 @@
       "dependsOn": [
         "compile cuda backend (debug)",
         "compile cuda kernel (debug)",
+        "compile curvature cuda backend (debug)",
+        "compile curvature cuda kernel (debug)",
         "compile Vulkan shaders"
       ],
       "type": "shell",
@@ -357,6 +429,8 @@
         // "Voxelizer/Parallel/DirectX/MeshVoxelizerDirectX.cpp", // uncomment for Windows
         "Voxelizer/Parallel/Cuda/MeshVoxelizerCuda.o",
         "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorCuda.o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorKernel.o",
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
@@ -382,6 +456,8 @@
       "dependsOn": [
         "compile cuda backend (release)",
         "compile cuda kernel (release)",
+        "compile curvature cuda backend (release)",
+        "compile curvature cuda kernel (release)",
         "compile Vulkan shaders"
       ],
       "type": "shell",
@@ -401,6 +477,8 @@
         // "Voxelizer/Parallel/DirectX/MeshVoxelizerDirectX.cpp", // uncomment for Windows
         "Voxelizer/Parallel/Cuda/MeshVoxelizerCuda.o",
         "Voxelizer/Parallel/Cuda/MeshVoxelizerKernel.o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorCuda.o",
+        "CurvatureEstimator/Parallel/Cuda/CurvatureEstimatorKernel.o",
         "CurvatureEstimator/CurvatureEstimator.cpp",
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
