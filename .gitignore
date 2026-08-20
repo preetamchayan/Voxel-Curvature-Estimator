@@ -4,6 +4,7 @@ output/*.txt
 output/*.mtl
 output/*.bin
 output/*.log
+output/*.asm
 benchmark/*.log
 benchmark/results/
 benchmark/__pycache__/

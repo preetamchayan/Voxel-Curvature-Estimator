@@ -1,4 +1,4 @@
-"""Build and compare Serial, OpenCL, and Vulkan curvature results for armadillo.obj."""
+"""Build and compare Serial, OpenCL, Vulkan, and DirectX curvature results for armadillo.obj."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from pathlib import Path
 SERIAL_ESTIMATOR = 0
 OPENCL_ESTIMATOR = 1
 VULKAN_ESTIMATOR = 2
+DIRECTX_ESTIMATOR = 4
 SCALE_FACTOR = "5"
 CURVE_LENGTH = "25"
 
@@ -26,10 +27,12 @@ INPUT_MESH = REPOSITORY_ROOT / "assets" / "armadillo.obj"
 SERIAL_LOG = OUTPUT_DIR / "curvature_serial.log"
 OPENCL_LOG = OUTPUT_DIR / "curvature_opencl.log"
 VULKAN_LOG = OUTPUT_DIR / "curvature_vulkan.log"
+DIRECTX_LOG = OUTPUT_DIR / "curvature_directx.log"
 OPENCL_MISMATCH_CSV = RESULTS_DIR / "serial_opencl_curvature_mismatches.csv"
 VULKAN_MISMATCH_CSV = RESULTS_DIR / "serial_vulkan_curvature_mismatches.csv"
-TIMING_CSV = RESULTS_DIR / "serial_opencl_vulkan_curvature_times.csv"
-PHASE_TIMING_CSV = RESULTS_DIR / "serial_opencl_vulkan_curvature_phase_times.csv"
+DIRECTX_MISMATCH_CSV = RESULTS_DIR / "serial_directx_curvature_mismatches.csv"
+TIMING_CSV = RESULTS_DIR / "serial_opencl_vulkan_directx_curvature_times.csv"
+PHASE_TIMING_CSV = RESULTS_DIR / "serial_opencl_vulkan_directx_curvature_phase_times.csv"
 CURVATURE_TIME_PATTERN = re.compile(r"CURVATURE_TIME_MS=(\d+)")
 PROFILE_PATTERN = re.compile(r"(CURVATURE_PROFILE_[A-Z_]+)=([0-9]+(?:\.[0-9]+)?)")
 
@@ -86,6 +89,7 @@ def build_release(estimator: int, name: str) -> None:
         "CurvatureEstimator/Serial/CurvatureEstimatorSerial.cpp",
         "CurvatureEstimator/Parallel/OpenCL/CurvatureEstimatorOpenCL.cpp",
         "CurvatureEstimator/Parallel/Vulkan/CurvatureEstimatorVulkan.cpp",
+        "CurvatureEstimator/Parallel/DirectX/CurvatureEstimatorDirectX.cpp",
     ]
     result = run_command([
         "clang++",
@@ -117,6 +121,7 @@ def build_release(estimator: int, name: str) -> None:
 
 def run_estimator(name: str, log_path: Path) -> tuple[int, float, dict[str, float]]:
     output_prefix = OUTPUT_DIR / f"curvature_{name.lower()}"
+    env = os.environ.copy()
     start = time.perf_counter()
     result = run_command(
         [
@@ -128,6 +133,7 @@ def run_estimator(name: str, log_path: Path) -> tuple[int, float, dict[str, floa
             str(log_path),
         ],
         input_text=f"{SCALE_FACTOR}\n{CURVE_LENGTH}\n",
+        env=env,
     )
     wall_time_ms = round((time.perf_counter() - start) * 1000.0, 3)
     if result.returncode != 0:
@@ -247,25 +253,34 @@ def main() -> int:
         build_release(VULKAN_ESTIMATOR, "Vulkan")
         vulkan_result = run_estimator("vulkan", VULKAN_LOG)
 
+        print("Building and running DirectX curvature estimator...")
+        build_release(DIRECTX_ESTIMATOR, "DirectX")
+        directx_result = run_estimator("directx", DIRECTX_LOG)
+
         results = {
             "serial": serial_result,
             "opencl": opencl_result,
             "vulkan": vulkan_result,
+            "directx": directx_result,
         }
         serial_time_ms, serial_wall_time_ms, serial_profile = serial_result
         opencl_time_ms, opencl_wall_time_ms, opencl_profile = opencl_result
         vulkan_time_ms, vulkan_wall_time_ms, vulkan_profile = vulkan_result
+        directx_time_ms, directx_wall_time_ms, directx_profile = directx_result
 
         serial_values = read_curvature_log(SERIAL_LOG)
         opencl_values = read_curvature_log(OPENCL_LOG)
         vulkan_values = read_curvature_log(VULKAN_LOG)
+        directx_values = read_curvature_log(DIRECTX_LOG)
         opencl_mismatch_count = write_mismatches(serial_values, opencl_values, "opencl", OPENCL_MISMATCH_CSV)
         vulkan_mismatch_count = write_mismatches(serial_values, vulkan_values, "vulkan", VULKAN_MISMATCH_CSV)
+        directx_mismatch_count = write_mismatches(serial_values, directx_values, "directx", DIRECTX_MISMATCH_CSV)
         write_timing_summary(results)
         write_phase_timing_summary({
             "serial": serial_profile,
             "opencl": opencl_profile,
             "vulkan": vulkan_profile,
+            "directx": directx_profile,
         })
     except (OSError, RuntimeError, ValueError) as error:
         print(error, file=sys.stderr)
@@ -274,18 +289,24 @@ def main() -> int:
     print(f"Serial curvature log: {SERIAL_LOG}")
     print(f"OpenCL curvature log: {OPENCL_LOG}")
     print(f"Vulkan curvature log: {VULKAN_LOG}")
+    print(f"DirectX curvature log: {DIRECTX_LOG}")
     print(f"Serial voxels: {len(serial_values)}")
     print(f"OpenCL voxels: {len(opencl_values)}")
     print(f"Vulkan voxels: {len(vulkan_values)}")
+    print(f"DirectX voxels: {len(directx_values)}")
     print(f"OpenCL mismatches vs Serial: {opencl_mismatch_count}")
     print(f"Vulkan mismatches vs Serial: {vulkan_mismatch_count}")
+    print(f"DirectX mismatches vs Serial: {directx_mismatch_count}")
     print(f"Serial curvature time: {serial_time_ms} ms")
     print(f"OpenCL curvature time: {opencl_time_ms} ms")
     print(f"Vulkan curvature time: {vulkan_time_ms} ms")
+    print(f"DirectX curvature time: {directx_time_ms} ms")
     print(f"OpenCL speedup vs Serial: {serial_time_ms / opencl_time_ms:.3f}x")
     print(f"Vulkan speedup vs Serial: {serial_time_ms / vulkan_time_ms:.3f}x")
+    print(f"DirectX speedup vs Serial: {serial_time_ms / directx_time_ms:.3f}x")
     print(f"OpenCL mismatch CSV: {OPENCL_MISMATCH_CSV}")
     print(f"Vulkan mismatch CSV: {VULKAN_MISMATCH_CSV}")
+    print(f"DirectX mismatch CSV: {DIRECTX_MISMATCH_CSV}")
     print(f"Timing CSV: {TIMING_CSV}")
     print(f"Phase timing CSV: {PHASE_TIMING_CSV}")
     return 0
