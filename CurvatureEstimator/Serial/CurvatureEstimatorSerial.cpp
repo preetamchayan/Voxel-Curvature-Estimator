@@ -8,20 +8,7 @@
 #include <iostream>
 #include <stdexcept>
 
-namespace {
-    constexpr uint8_t INVALID_CHAIN_CODE = 255;
-    const Point3i INVALID_POINT(-1, -1, -1);
 
-    using CurveCandidate = std::pair<Point3i, uint8_t>;
-
-    CurveCandidate invalidCandidate() {
-        return {INVALID_POINT, INVALID_CHAIN_CODE};
-    }
-
-    bool isInvalidCandidate(const CurveCandidate& candidate) {
-        return candidate.first == INVALID_POINT || candidate.second == INVALID_CHAIN_CODE;
-    }
-}
 
 CurvatureEstimatorSerial::CurvatureEstimatorSerial(const BBox3i& bounds)
     : m_voxels(nullptr), m_bounds(bounds) {}
@@ -34,37 +21,16 @@ void CurvatureEstimatorSerial::preprocessVoxels(std::vector<unsigned char>& voxe
 
 void CurvatureEstimatorSerial::computeInnerSpaceAndFrontierVoxels(
     std::vector<unsigned char>& voxels) {
-    // Temporary preprocessing diagnostics. Remove after Vulkan matches this reference path.
-    const auto printVoxelStateCounts = [&](const char* passName) {
-        std::array<size_t, 7> counts{};
-        size_t otherCount = 0;
-        for (unsigned char value : voxels) {
-            if (value < counts.size()) ++counts[value];
-            else ++otherCount;
-        }
-        std::cout << "Serial preprocessing after " << passName
-                  << ": [0=" << counts[0] << ", 1=" << counts[1]
-                  << ", 2=" << counts[2] << ", 3=" << counts[3]
-                  << ", 4=" << counts[4] << ", 5=" << counts[5]
-                  << ", 6=" << counts[6] << ", other=" << otherCount << "]"
-                  << std::endl;
-    };
-
     std::cout << "Computing inner space via plane 2\n";
     computeInnerSpaceVoxels(voxels, m_dims.width, m_dims.height, m_dims.depth, 2);
-    printVoxelStateCounts("inner-space plane 2");
     std::cout << "Computing inner space via plane 1\n";
     computeInnerSpaceVoxels(voxels, m_dims.depth, m_dims.width, m_dims.height, 1);
-    printVoxelStateCounts("inner-space plane 1");
     std::cout << "Computing inner space via plane 0\n";
     computeInnerSpaceVoxels(voxels, m_dims.height, m_dims.depth, m_dims.width, 0);
-    printVoxelStateCounts("inner-space plane 0");
     std::cout << "Marking interior voxels\n";
     markInteriorVoxels(voxels);
-    printVoxelStateCounts("mark interior");
     std::cout << "Marking frontier voxels\n";
     computeFrontierVoxels(voxels);
-    printVoxelStateCounts("mark frontier");
 }
 
 void CurvatureEstimatorSerial::computeInnerSpaceVoxels(
@@ -166,6 +132,9 @@ void CurvatureEstimatorSerial::estimateCurvature(int curveLength,
                                                     std::vector<int>& curvatures,
                                                     const Dimensions3i& dims) {
     std::cout << "Estimating curvature using Serial path..." << std::endl;
+    if (curveLength < 0 || curveLength > MAX_CURVE_LENGTH) {
+        throw std::runtime_error("curve length exceeds serial curvature buffer capacity");
+    }
     m_curveLength = curveLength;
     m_dims = dims;
     m_voxels = &voxels;
@@ -186,7 +155,7 @@ void CurvatureEstimatorSerial::estimateCurvature(int curveLength,
 
                 count++;
                 // std::cout << "Total grid cells: " << voxels.size() << "; processing surface voxel: " << count << std::endl;
-                int curvature = computeCurvatureAtVoxel(Point3i(x, y, z));
+                int curvature = computeCurvatureAtVoxel(static_cast<int>(id));
                 curvatures[id] = curvature;
                 if (curvature != std::numeric_limits<int>::max()) {
                     localMaxCurvature = std::max(localMaxCurvature, curvature);
@@ -201,6 +170,12 @@ size_t CurvatureEstimatorSerial::getVoxelID(int x, int y, int z) const {
     return static_cast<size_t>(x) +
            static_cast<size_t>(y) * m_dims.width +
            static_cast<size_t>(z) * m_dims.width * m_dims.height;
+}
+
+Point3i CurvatureEstimatorSerial::getCoordinates(int voxelID) const {
+    const int slice = m_dims.width * m_dims.height;
+    const int t = voxelID % slice;
+    return Point3i(t % m_dims.width, t / m_dims.width, voxelID / slice);
 }
 
 bool CurvatureEstimatorSerial::inGrid(int x, int y, int z) const {
@@ -219,7 +194,16 @@ bool CurvatureEstimatorSerial::isInterior(const Point3i& voxel) const {
            (*m_voxels)[getVoxelID(voxel.x, voxel.y, voxel.z)] == 2;
 }
 
-int CurvatureEstimatorSerial::computeCurvatureAtVoxel(Point3i voxel) {
+CurvatureEstimatorSerial::Candidate CurvatureEstimatorSerial::invalidCandidate() const {
+    return {INVALID_VOXEL_ID, INVALID_CHAIN_CODE};
+}
+
+bool CurvatureEstimatorSerial::isInvalidCandidate(const Candidate& candidate) const {
+    return candidate.chainCode == INVALID_CHAIN_CODE || candidate.voxelID == INVALID_VOXEL_ID;
+}
+
+int CurvatureEstimatorSerial::computeCurvatureAtVoxel(int voxelID) {
+    const Point3i voxel = getCoordinates(voxelID);
     int maxCurvature = std::numeric_limits<int>::min();
     int minCurvature = std::numeric_limits<int>::max();
     for (int plane = 0; plane < 9; ++plane) {
@@ -237,12 +221,12 @@ int CurvatureEstimatorSerial::computeCurvatureAtVoxel(Point3i voxel) {
 int CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve3D(
     Point3i voxel, int plane
 ) {
-    std::vector<Point3i> curve3D(2 * m_curveLength + 1);
-    curve3D[m_curveLength] = voxel;
+    std::array<int, 2 * MAX_CURVE_LENGTH + 1> curve3D{};
+    curve3D[m_curveLength] = static_cast<int>(getVoxelID(voxel.x, voxel.y, voxel.z));
     int curvature = std::numeric_limits<int>::max();
-    std::vector<std::pair<Point3i, uint8_t>> headCurve(8, invalidCandidate());
-    std::vector<std::pair<Point3i, uint8_t>> trailCurve(8, invalidCandidate());
-    std::vector<std::pair<Point3i, uint8_t>> leadCurve(8, invalidCandidate());
+    std::array<Candidate, 8> headCurve{};
+    std::array<Candidate, 8> trailCurve{};
+    std::array<Candidate, 8> leadCurve{};
 
     getNeighborsInPlane(voxel, plane, headCurve);
     int count = 0;
@@ -285,9 +269,9 @@ int CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve3D(
 bool CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve2D(
     int plane,
     Point3i voxel,
-    std::vector<std::pair<Point3i, uint8_t>>& trailCurve,
-    std::vector<std::pair<Point3i, uint8_t>>& leadCurve,
-    std::vector<Point3i>& curve3D,
+    std::array<Candidate, 8>& trailCurve,
+    std::array<Candidate, 8>& leadCurve,
+    std::array<int, 2 * MAX_CURVE_LENGTH + 1>& curve3D,
     int& curvature
 ) {
     // Placeholder for the actual implementation of 2D curvature computation
@@ -301,14 +285,14 @@ bool CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve2D(
         int minDiff = INVALID_CHAIN_CODE;
         for(int j = 0; j < 8; j++) {
             if(isInvalidCandidate(trailCurve[j])) continue;
-            Point3i voxel1 = trailCurve[j].first;
-            uint8_t trailChain = trailCurve[j].second;
+            Point3i voxel1 = getCoordinates(trailCurve[j].voxelID);
+            uint8_t trailChain = trailCurve[j].chainCode;
             for(int k = 0; k < 8; k++) {
                 if(isInvalidCandidate(leadCurve[k])) continue;
-                Point3i voxel2 = leadCurve[k].first;
-                uint8_t leadChain = leadCurve[k].second < 4 ?
-                                    leadCurve[k].second + 4 :
-                                    leadCurve[k].second - 4;
+                Point3i voxel2 = getCoordinates(leadCurve[k].voxelID);
+                uint8_t leadChain = leadCurve[k].chainCode < 4 ?
+                                    leadCurve[k].chainCode + 4 :
+                                    leadCurve[k].chainCode - 4;
                 int distX12 = std::max(std::max(
                     std::abs(voxel1.x-voxel2.x),
                     std::abs(voxel1.y-voxel2.y)),
@@ -329,8 +313,8 @@ bool CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve2D(
                     trailChainCode = trailChain;
                     leadChainCode = leadChain;
                     minDiff = diff;
-                    curve3D[m_curveLength-i] = voxel1;
-                    curve3D[m_curveLength+i] = voxel2;
+                    curve3D[m_curveLength-i] = static_cast<int>(getVoxelID(voxel1.x, voxel1.y, voxel1.z));
+                    curve3D[m_curveLength+i] = static_cast<int>(getVoxelID(voxel2.x, voxel2.y, voxel2.z));
                 }
             }
         }
@@ -370,18 +354,18 @@ bool CurvatureEstimatorSerial::computeCurvatureOfDigitalCurve2D(
 bool CurvatureEstimatorSerial::findNextLevelVoxels(
     int i,
     int plane,
-    std::vector<std::pair<Point3i, uint8_t>>& curve,
-    const std::vector<Point3i>& curve3D
+    std::array<Candidate, 8>& curve,
+    const std::array<int, 2 * MAX_CURVE_LENGTH + 1>& curve3D
 ) {
     // Placeholder for the actual implementation of finding next level voxels
     // This function should populate the curve vector with the next level voxels based on the current voxel and plane
-    Point3i voxel = curve3D[m_curveLength + i];
+    Point3i voxel = getCoordinates(curve3D[m_curveLength + i]);
     i = std::abs(i);
     getNeighborsInPlane(voxel, plane, curve);
     int count = 0;
     for(int j = 0; j < 8; j++) {
         for(int k = m_curveLength - i; k <= m_curveLength + i; k++) {
-            if(curve3D[k] == curve[j].first) {
+            if(curve3D[k] == curve[j].voxelID) {
                 curve[j] = invalidCandidate();
                 break;
             }
@@ -397,12 +381,11 @@ bool CurvatureEstimatorSerial::findNextLevelVoxels(
 
 void CurvatureEstimatorSerial::getNeighborsInPlane(
     Point3i voxel, int plane,
-    std::vector<std::pair<Point3i, uint8_t>>& neighbors) {
+    std::array<Candidate, 8>& neighbors) {
     // Placeholder for the actual implementation of getting neighbors in a specific plane
     // This function should populate the neighbors vector with the neighboring voxels in the specified plane
     // The implementation will depend on how the planes are defined and how neighbors are determined
     std::fill(neighbors.begin(), neighbors.end(), invalidCandidate());
-    std::vector<Point3i> voxels(8);
     int x = voxel.x, y = voxel.y, z = voxel.z;
     const int xmin = 0;
     const int xmax = m_dims.width - 1;
@@ -411,315 +394,348 @@ void CurvatureEstimatorSerial::getNeighborsInPlane(
     const int zmin = 0;
     const int zmax = m_dims.depth - 1;
 
+    const auto neighborAt = [&](int neighborIndex) {
+        switch (plane) {
+            case 0:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x + 1, y, z);
+                    case 1: return Point3i(x - 1, y, z);
+                    case 2: return Point3i(x, y + 1, z);
+                    case 3: return Point3i(x, y - 1, z);
+                    case 4: return Point3i(x + 1, y + 1, z);
+                    case 5: return Point3i(x + 1, y - 1, z);
+                    case 6: return Point3i(x - 1, y + 1, z);
+                    default: return Point3i(x - 1, y - 1, z);
+                }
+            case 1:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x, y + 1, z);
+                    case 1: return Point3i(x, y - 1, z);
+                    case 2: return Point3i(x + 1, y, z - 1);
+                    case 3: return Point3i(x - 1, y, z + 1);
+                    case 4: return Point3i(x + 1, y + 1, z - 1);
+                    case 5: return Point3i(x - 1, y + 1, z + 1);
+                    case 6: return Point3i(x + 1, y - 1, z - 1);
+                    default: return Point3i(x - 1, y - 1, z + 1);
+                }
+            case 2:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x, y + 1, z);
+                    case 1: return Point3i(x, y - 1, z);
+                    case 2: return Point3i(x + 1, y, z + 1);
+                    case 3: return Point3i(x - 1, y, z - 1);
+                    case 4: return Point3i(x + 1, y + 1, z + 1);
+                    case 5: return Point3i(x + 1, y - 1, z + 1);
+                    case 6: return Point3i(x - 1, y + 1, z - 1);
+                    default: return Point3i(x - 1, y - 1, z - 1);
+                }
+            case 3:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x, y + 1, z);
+                    case 1: return Point3i(x, y - 1, z);
+                    case 2: return Point3i(x, y, z + 1);
+                    case 3: return Point3i(x, y, z - 1);
+                    case 4: return Point3i(x, y + 1, z + 1);
+                    case 5: return Point3i(x, y + 1, z - 1);
+                    case 6: return Point3i(x, y - 1, z + 1);
+                    default: return Point3i(x, y - 1, z - 1);
+                }
+            case 4:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x, y, z + 1);
+                    case 1: return Point3i(x, y, z - 1);
+                    case 2: return Point3i(x - 1, y + 1, z);
+                    case 3: return Point3i(x + 1, y - 1, z);
+                    case 4: return Point3i(x - 1, y + 1, z + 1);
+                    case 5: return Point3i(x - 1, y + 1, z - 1);
+                    case 6: return Point3i(x + 1, y - 1, z + 1);
+                    default: return Point3i(x + 1, y - 1, z - 1);
+                }
+            case 5:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x, y, z + 1);
+                    case 1: return Point3i(x, y, z - 1);
+                    case 2: return Point3i(x + 1, y + 1, z);
+                    case 3: return Point3i(x - 1, y - 1, z);
+                    case 4: return Point3i(x + 1, y + 1, z + 1);
+                    case 5: return Point3i(x + 1, y + 1, z - 1);
+                    case 6: return Point3i(x - 1, y - 1, z + 1);
+                    default: return Point3i(x - 1, y - 1, z - 1);
+                }
+            case 6:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x, y, z + 1);
+                    case 1: return Point3i(x, y, z - 1);
+                    case 2: return Point3i(x + 1, y, z);
+                    case 3: return Point3i(x - 1, y, z);
+                    case 4: return Point3i(x + 1, y, z + 1);
+                    case 5: return Point3i(x - 1, y, z + 1);
+                    case 6: return Point3i(x + 1, y, z - 1);
+                    default: return Point3i(x - 1, y, z - 1);
+                }
+            case 7:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x + 1, y, z);
+                    case 1: return Point3i(x - 1, y, z);
+                    case 2: return Point3i(x, y - 1, z + 1);
+                    case 3: return Point3i(x, y + 1, z - 1);
+                    case 4: return Point3i(x + 1, y - 1, z + 1);
+                    case 5: return Point3i(x - 1, y - 1, z + 1);
+                    case 6: return Point3i(x + 1, y + 1, z - 1);
+                    default: return Point3i(x - 1, y + 1, z - 1);
+                }
+            default:
+                switch (neighborIndex) {
+                    case 0: return Point3i(x + 1, y, z);
+                    case 1: return Point3i(x - 1, y, z);
+                    case 2: return Point3i(x, y + 1, z + 1);
+                    case 3: return Point3i(x, y - 1, z - 1);
+                    case 4: return Point3i(x + 1, y + 1, z + 1);
+                    case 5: return Point3i(x + 1, y - 1, z - 1);
+                    case 6: return Point3i(x - 1, y + 1, z + 1);
+                    default: return Point3i(x - 1, y - 1, z - 1);
+                }
+        }
+    };
+
     switch(plane) {
         case 0: // xy plane zero degree
-            voxels[0] = Point3i(voxel.x+1, voxel.y, voxel.z);
-            voxels[1] = Point3i(voxel.x-1, voxel.y, voxel.z);
-            voxels[2] = Point3i(voxel.x, voxel.y+1, voxel.z);
-            voxels[3] = Point3i(voxel.x, voxel.y-1, voxel.z);
-            voxels[4] = Point3i(voxel.x+1, voxel.y+1, voxel.z);
-            voxels[5] = Point3i(voxel.x+1, voxel.y-1, voxel.z);
-            voxels[6] = Point3i(voxel.x-1, voxel.y+1, voxel.z);
-            voxels[7] = Point3i(voxel.x-1, voxel.y-1, voxel.z);
-            if(x != xmax && isSurface(voxels[0])) addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-            if(x != xmin && isSurface(voxels[1])) addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-            if(y != ymax && isSurface(voxels[2])) addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-            if(y != ymin && isSurface(voxels[3])) addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-            if(x != xmax && y != ymax && isSurface(voxels[4])) addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-            if(x != xmax && y != ymin && isSurface(voxels[5])) addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-            if(x != xmin && y != ymax && isSurface(voxels[6])) addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-            if(x != xmin && y != ymin && isSurface(voxels[7])) addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+            if(x != xmax && isSurface(neighborAt(0))) addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+            if(x != xmin && isSurface(neighborAt(1))) addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+            if(y != ymax && isSurface(neighborAt(2))) addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+            if(y != ymin && isSurface(neighborAt(3))) addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+            if(x != xmax && y != ymax && isSurface(neighborAt(4))) addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+            if(x != xmax && y != ymin && isSurface(neighborAt(5))) addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+            if(x != xmin && y != ymax && isSurface(neighborAt(6))) addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+            if(x != xmin && y != ymin && isSurface(neighborAt(7))) addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
         break;
         case 1: // xy plane 45 degree anti-clockwise
-            voxels[0] = Point3i(voxel.x, voxel.y + 1, voxel.z);
-            voxels[1] = Point3i(voxel.x, voxel.y - 1, voxel.z);
-            voxels[2] = Point3i(voxel.x + 1, voxel.y, voxel.z - 1);
-            voxels[3] = Point3i(voxel.x - 1, voxel.y, voxel.z + 1);
-            voxels[4] = Point3i(voxel.x + 1, voxel.y + 1, voxel.z - 1);
-            voxels[5] = Point3i(voxel.x - 1, voxel.y + 1, voxel.z + 1);
-            voxels[6] = Point3i(voxel.x + 1, voxel.y - 1, voxel.z - 1);
-            voxels[7] = Point3i(voxel.x - 1, voxel.y - 1, voxel.z + 1);
-            if(y != ymax && (isSurface(voxels[0]) ||
+            if(y != ymax && (isSurface(neighborAt(0)) ||
             (x != xmin && isSurface(Point3i(x - 1, y + 1, z)) ||
             x != xmax && isSurface(Point3i(x + 1, y + 1, z))) &&
             (z != zmin && isSurface(Point3i(x, y + 1, z - 1)) ||
             z != zmax && isSurface(Point3i(x, y + 1, z + 1))) &&
-            !isInterior(voxels[0])))
-                addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-            if(y != ymin && (isSurface(voxels[1]) ||
+            !isInterior(neighborAt(0))))
+                addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+            if(y != ymin && (isSurface(neighborAt(1)) ||
             (x != xmin && isSurface(Point3i(x - 1, y - 1, z)) ||
             x != xmax && isSurface(Point3i(x + 1, y - 1, z))) &&
             (z != zmin && isSurface(Point3i(x, y - 1, z - 1)) ||
             z != zmax && isSurface(Point3i(x, y - 1, z + 1))) &&
-            !isInterior(voxels[1])))
-                addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-            if(voxel.x != xmax && voxel.z != zmin && isSurface(voxels[2]))
-                addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-            if(voxel.x != xmin && voxel.z != zmax && isSurface(voxels[3]))
-                addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-            if(voxel.x != xmax && voxel.y != ymax && voxel.z != zmin && (isSurface(voxels[4]) ||
+            !isInterior(neighborAt(1))))
+                addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+            if(voxel.x != xmax && voxel.z != zmin && isSurface(neighborAt(2)))
+                addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+            if(voxel.x != xmin && voxel.z != zmax && isSurface(neighborAt(3)))
+                addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+            if(voxel.x != xmax && voxel.y != ymax && voxel.z != zmin && (isSurface(neighborAt(4)) ||
             isSurface(Point3i(voxel.x, voxel.y + 1, voxel.z - 1)) && isSurface(Point3i(voxel.x + 1, voxel.y + 1, voxel.z)) &&
-            !isInterior(voxels[4])))
-                addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-            if(x != xmin && y != ymax && z != zmax && (isSurface(voxels[5]) ||
+            !isInterior(neighborAt(4))))
+                addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+            if(x != xmin && y != ymax && z != zmax && (isSurface(neighborAt(5)) ||
             isSurface(Point3i(x, y + 1, z + 1)) && isSurface(Point3i(x - 1, y + 1, z)) &&
-            !isInterior(voxels[5])))
-                addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-            if(x != xmax && y != ymin && z != zmin && (isSurface(voxels[6]) ||
+            !isInterior(neighborAt(5))))
+                addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+            if(x != xmax && y != ymin && z != zmin && (isSurface(neighborAt(6)) ||
             isSurface(Point3i(x, y - 1, z - 1)) && isSurface(Point3i(x + 1, y - 1, z)) &&
-            !isInterior(voxels[6])))
-                addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(x != xmin && y != ymin && z != zmax && (isSurface(voxels[7]) ||
+            !isInterior(neighborAt(6))))
+                addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(x != xmin && y != ymin && z != zmax && (isSurface(neighborAt(7)) ||
 			isSurface(Point3i(x, y - 1, z + 1)) && isSurface(Point3i(x - 1, y - 1, z)) &&
-            !isInterior(voxels[7])))
-				addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+            !isInterior(neighborAt(7))))
+				addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 		break;
 		case 2: // xy plane 45 degree clockwise
-            voxels[0] = Point3i(voxel.x, voxel.y + 1, voxel.z);
-            voxels[1] = Point3i(voxel.x, voxel.y - 1, voxel.z);
-            voxels[2] = Point3i(voxel.x + 1, voxel.y, voxel.z + 1);
-            voxels[3] = Point3i(voxel.x - 1, voxel.y, voxel.z - 1);
-            voxels[4] = Point3i(voxel.x + 1, voxel.y + 1, voxel.z + 1);
-            voxels[5] = Point3i(voxel.x + 1, voxel.y - 1, voxel.z + 1);
-            voxels[6] = Point3i(voxel.x - 1, voxel.y + 1, voxel.z - 1);
-            voxels[7] = Point3i(voxel.x - 1, voxel.y - 1, voxel.z - 1);
-			if(y != ymax && (isSurface(voxels[0]) ||
+			if(y != ymax && (isSurface(neighborAt(0)) ||
 			(x != xmin && isSurface(Point3i(x - 1, y + 1, z)) || x != xmax && isSurface(Point3i(x + 1, y + 1, z))) &&
 			(z != zmin && isSurface(Point3i(x, y + 1, z - 1)) || z != zmax && isSurface(Point3i(x, y + 1, z + 1))) &&
-            !isInterior(voxels[0])))
-				addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-			if(y != ymin && (isSurface(voxels[1]) ||
+            !isInterior(neighborAt(0))))
+				addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+			if(y != ymin && (isSurface(neighborAt(1)) ||
 			(x != xmin && isSurface(Point3i(x - 1, y - 1, z)) || x != xmax && isSurface(Point3i(x + 1, y - 1, z))) &&
 			(z != zmin && isSurface(Point3i(x, y - 1, z - 1)) || z != zmax && isSurface(Point3i(x, y - 1, z + 1))) &&
-            !isInterior(voxels[1])))
-				addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-			if(x != xmax && z != zmax && isSurface(voxels[2]))
-				addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-			if(x != xmin && z != zmin && isSurface(voxels[3]))
-				addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-			if(x != xmax && y != ymax && z != zmax && (isSurface(voxels[4]) ||
-			isSurface(Point3i(x, y + 1, z + 1)) && isSurface(Point3i(x + 1, y + 1, z)) && !isInterior(voxels[4])))
-				addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-			if(x != xmax && y != ymin && z != zmax && (isSurface(voxels[5]) ||
+            !isInterior(neighborAt(1))))
+				addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+			if(x != xmax && z != zmax && isSurface(neighborAt(2)))
+				addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+			if(x != xmin && z != zmin && isSurface(neighborAt(3)))
+				addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+			if(x != xmax && y != ymax && z != zmax && (isSurface(neighborAt(4)) ||
+			isSurface(Point3i(x, y + 1, z + 1)) && isSurface(Point3i(x + 1, y + 1, z)) && !isInterior(neighborAt(4))))
+				addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+			if(x != xmax && y != ymin && z != zmax && (isSurface(neighborAt(5)) ||
 			isSurface(Point3i(x, y - 1, z + 1)) && isSurface(Point3i(x + 1, y - 1, z)) &&
-            !isInterior(voxels[5])))
-				addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-			if(x != xmin && y != ymax && z != zmin && (isSurface(voxels[6]) ||
+            !isInterior(neighborAt(5))))
+				addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+			if(x != xmin && y != ymax && z != zmin && (isSurface(neighborAt(6)) ||
 			isSurface(Point3i(x - 1, y + 1, z)) && isSurface(Point3i(x, y + 1, z - 1)) &&
-            !isInterior(voxels[6])))
-				addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(x != xmin && y != ymin && z != zmin && (isSurface(voxels[7]) ||
+            !isInterior(neighborAt(6))))
+				addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(x != xmin && y != ymin && z != zmin && (isSurface(neighborAt(7)) ||
 			isSurface(Point3i(x, y - 1, z - 1)) && isSurface(Point3i(x - 1, y - 1, z)) &&
-            !isInterior(voxels[7])))
-				addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+            !isInterior(neighborAt(7))))
+				addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 		break;
 		case 3: // yz plane zero degree
-            voxels[0] = Point3i(voxel.x, voxel.y + 1, voxel.z);
-            voxels[1] = Point3i(voxel.x, voxel.y - 1, voxel.z);
-            voxels[2] = Point3i(voxel.x, voxel.y, voxel.z + 1);
-            voxels[3] = Point3i(voxel.x, voxel.y, voxel.z - 1);
-            voxels[4] = Point3i(voxel.x, voxel.y + 1, voxel.z + 1);
-            voxels[5] = Point3i(voxel.x, voxel.y + 1, voxel.z - 1);
-            voxels[6] = Point3i(voxel.x, voxel.y - 1, voxel.z + 1);
-            voxels[7] = Point3i(voxel.x, voxel.y - 1, voxel.z - 1);
-			if(y != ymax && isSurface(voxels[0])) addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-			if(y != ymin && isSurface(voxels[1])) addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-			if(z != zmax && isSurface(voxels[2])) addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-			if(z != zmin && isSurface(voxels[3])) addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-			if(y != ymax && z != zmax && isSurface(voxels[4])) addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-			if(y != ymax && z != zmin && isSurface(voxels[5])) addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-			if(y != ymin && z != zmax && isSurface(voxels[6])) addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(y != ymin && z != zmin && isSurface(voxels[7])) addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+			if(y != ymax && isSurface(neighborAt(0))) addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+			if(y != ymin && isSurface(neighborAt(1))) addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+			if(z != zmax && isSurface(neighborAt(2))) addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+			if(z != zmin && isSurface(neighborAt(3))) addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+			if(y != ymax && z != zmax && isSurface(neighborAt(4))) addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+			if(y != ymax && z != zmin && isSurface(neighborAt(5))) addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+			if(y != ymin && z != zmax && isSurface(neighborAt(6))) addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(y != ymin && z != zmin && isSurface(neighborAt(7))) addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 		break;
 		case 4: // yz plane 45 degree anti-clockwise
-            voxels[0] = Point3i(voxel.x, voxel.y, voxel.z + 1);
-            voxels[1] = Point3i(voxel.x, voxel.y, voxel.z - 1);
-            voxels[2] = Point3i(voxel.x - 1, voxel.y + 1, voxel.z);
-            voxels[3] = Point3i(voxel.x + 1, voxel.y - 1, voxel.z);
-            voxels[4] = Point3i(voxel.x - 1, voxel.y + 1, voxel.z + 1);
-            voxels[5] = Point3i(voxel.x - 1, voxel.y + 1, voxel.z - 1);
-            voxels[6] = Point3i(voxel.x + 1, voxel.y - 1, voxel.z + 1);
-            voxels[7] = Point3i(voxel.x + 1, voxel.y - 1, voxel.z - 1);
-			if(z != zmax && (isSurface(voxels[0]) ||
+			if(z != zmax && (isSurface(neighborAt(0)) ||
 			(x != xmin && isSurface(Point3i(x-1, y, z+1))|| x != xmax && isSurface(Point3i(x+1, y, z+1))) &&
 			(y != ymin && isSurface(Point3i(x, y-1, z+1)) || y != ymax && isSurface(Point3i(x, y+1, z+1))) &&
-            !isInterior(voxels[0])))
-				addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-			if(z != zmin && (isSurface(voxels[1]) ||
+            !isInterior(neighborAt(0))))
+				addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+			if(z != zmin && (isSurface(neighborAt(1)) ||
 			(x != xmin && isSurface(Point3i(x-1, y, z-1))|| x != xmax && isSurface(Point3i(x+1, y, z-1))) &&
 			(y != ymin && isSurface(Point3i(x, y-1, z-1)) || y != ymax && isSurface(Point3i(x, y+1, z-1))) &&
-            !isInterior(voxels[1])))
-				addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-			if(x != xmin && y != ymax && (isSurface(voxels[2]))) 
-				addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-			if(x != xmax && y != ymin && (isSurface(voxels[3])))
-				addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-			if(x != xmin && y != ymax && z != zmax && (isSurface(voxels[4]) ||
+            !isInterior(neighborAt(1))))
+				addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+			if(x != xmin && y != ymax && (isSurface(neighborAt(2)))) 
+				addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+			if(x != xmax && y != ymin && (isSurface(neighborAt(3))))
+				addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+			if(x != xmin && y != ymax && z != zmax && (isSurface(neighborAt(4)) ||
 			isSurface(Point3i(x, y+1, z+1)) && isSurface(Point3i(x-1, y, z+1)) &&
             !isInterior(Point3i(x-1, y+1, z+1))))
-				addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-			if(x != xmin && y != ymax && z != zmin && (isSurface(voxels[5]) ||
+				addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+			if(x != xmin && y != ymax && z != zmin && (isSurface(neighborAt(5)) ||
 			isSurface(Point3i(x, y+1, z-1)) && isSurface(Point3i(x-1, y, z-1)) &&
-            !isInterior(voxels[5])))
-				addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-			if(x != xmax && y != ymin && z != zmax && (isSurface(voxels[6]) ||
+            !isInterior(neighborAt(5))))
+				addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+			if(x != xmax && y != ymin && z != zmax && (isSurface(neighborAt(6)) ||
 			isSurface(Point3i(x, y-1, z+1)) && isSurface(Point3i(x+1, y, z+1)) &&
-            !isInterior(voxels[6])))
-				addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(x != xmax && y != ymin && z != zmin && (isSurface(voxels[7]) ||
+            !isInterior(neighborAt(6))))
+				addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(x != xmax && y != ymin && z != zmin && (isSurface(neighborAt(7)) ||
 			isSurface(Point3i(x, y-1, z-1)) && isSurface(Point3i(x+1, y, z-1)) &&
-            !isInterior(voxels[7])))
-				addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+            !isInterior(neighborAt(7))))
+				addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 		break;
 		case 5: // yz plane 45 degree clockwise
-            voxels[0] = Point3i(voxel.x, voxel.y, voxel.z + 1);
-            voxels[1] = Point3i(voxel.x, voxel.y, voxel.z - 1);
-            voxels[2] = Point3i(voxel.x + 1, voxel.y + 1, voxel.z);
-            voxels[3] = Point3i(voxel.x - 1, voxel.y - 1, voxel.z);
-            voxels[4] = Point3i(voxel.x + 1, voxel.y + 1, voxel.z + 1);
-            voxels[5] = Point3i(voxel.x + 1, voxel.y + 1, voxel.z - 1);
-            voxels[6] = Point3i(voxel.x - 1, voxel.y - 1, voxel.z + 1);
-            voxels[7] = Point3i(voxel.x - 1, voxel.y - 1, voxel.z - 1);
-			if(z != zmax && (isSurface(voxels[0]) ||
+			if(z != zmax && (isSurface(neighborAt(0)) ||
 			(x != xmin && isSurface(Point3i(x-1, y, z+1)) || x != xmax && isSurface(Point3i(x+1, y, z+1))) &&
 			(y != ymin && isSurface(Point3i(x, y-1, z+1)) || y != ymax && isSurface(Point3i(x, y+1, z+1))) &&
-            !isInterior(voxels[0]))) 
-				addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-			if(z != zmin && (isSurface(voxels[1]) ||
+            !isInterior(neighborAt(0)))) 
+				addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+			if(z != zmin && (isSurface(neighborAt(1)) ||
 			(x != xmin && isSurface(Point3i(x-1, y, z-1)) || x != xmax && isSurface(Point3i(x+1, y, z-1))) &&
 			(y != ymin && isSurface(Point3i(x, y-1, z-1)) || y != ymax && isSurface(Point3i(x, y+1, z-1))) &&
-            !isInterior(voxels[1]))) 
-				addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-			if(x != xmax && y != ymax && isSurface(voxels[2]))
-				addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-			if(x != xmin && y != ymin && isSurface(voxels[3]))
-				addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-			if(x != xmax && y != ymax && z != zmax && (isSurface(voxels[4]) ||
+            !isInterior(neighborAt(1)))) 
+				addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+			if(x != xmax && y != ymax && isSurface(neighborAt(2)))
+				addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+			if(x != xmin && y != ymin && isSurface(neighborAt(3)))
+				addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+			if(x != xmax && y != ymax && z != zmax && (isSurface(neighborAt(4)) ||
 			isSurface(Point3i(x, y+1, z+1)) && isSurface(Point3i(x+1, y, z+1)) &&
-            !isInterior(voxels[4])))
-				addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-			if(x != xmax && y != ymax && z != zmin && (isSurface(voxels[5]) ||
+            !isInterior(neighborAt(4))))
+				addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+			if(x != xmax && y != ymax && z != zmin && (isSurface(neighborAt(5)) ||
 			isSurface(Point3i(x+1, y, z-1)) && isSurface(Point3i(x, y+1, z-1)) &&
-            !isInterior(voxels[5])))
-				addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-			if(x != xmin && y != ymin && z != zmax && (isSurface(voxels[6]) ||
+            !isInterior(neighborAt(5))))
+				addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+			if(x != xmin && y != ymin && z != zmax && (isSurface(neighborAt(6)) ||
 			isSurface(Point3i(x, y-1, z+1)) && isSurface(Point3i(x-1, y, z+1)) &&
-            !isInterior(voxels[6]))) 
-				addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(x != xmin && y != ymin && z != zmin && (isSurface(voxels[7]) ||
+            !isInterior(neighborAt(6)))) 
+				addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(x != xmin && y != ymin && z != zmin && (isSurface(neighborAt(7)) ||
 			isSurface(Point3i(x, y-1, z-1)) && isSurface(Point3i(x-1, y, z-1)) &&
-            !isInterior(voxels[7]))) 
-				addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+            !isInterior(neighborAt(7)))) 
+				addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 		break;
 		case 6: // zx plane zero degree
-            voxels[0] = Point3i(voxel.x, voxel.y, voxel.z + 1);
-            voxels[1] = Point3i(voxel.x, voxel.y, voxel.z - 1);
-            voxels[2] = Point3i(voxel.x + 1, voxel.y, voxel.z);
-            voxels[3] = Point3i(voxel.x - 1, voxel.y, voxel.z);
-            voxels[4] = Point3i(voxel.x + 1, voxel.y, voxel.z + 1);
-            voxels[5] = Point3i(voxel.x - 1, voxel.y, voxel.z + 1);
-            voxels[6] = Point3i(voxel.x + 1, voxel.y, voxel.z - 1);
-            voxels[7] = Point3i(voxel.x - 1, voxel.y, voxel.z - 1);
-			if(z != zmax && isSurface(voxels[0])) addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-			if(z != zmin && isSurface(voxels[1])) addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-			if(x != xmax && isSurface(voxels[2])) addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-			if(x != xmin && isSurface(voxels[3])) addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-			if(x != xmax && z != zmax && isSurface(voxels[4])) addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-			if(x != xmin && z != zmax && isSurface(voxels[5])) addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-			if(x != xmax && z != zmin && isSurface(voxels[6])) addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(x != xmin && z != zmin && isSurface(voxels[7])) addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+			if(z != zmax && isSurface(neighborAt(0))) addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+			if(z != zmin && isSurface(neighborAt(1))) addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+			if(x != xmax && isSurface(neighborAt(2))) addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+			if(x != xmin && isSurface(neighborAt(3))) addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+			if(x != xmax && z != zmax && isSurface(neighborAt(4))) addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+			if(x != xmin && z != zmax && isSurface(neighborAt(5))) addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+			if(x != xmax && z != zmin && isSurface(neighborAt(6))) addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(x != xmin && z != zmin && isSurface(neighborAt(7))) addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 		break;
 		case 7: // zx plane 45 degree anti-clockwise
-            voxels[0] = Point3i(voxel.x + 1, voxel.y, voxel.z);
-            voxels[1] = Point3i(voxel.x - 1, voxel.y, voxel.z);
-            voxels[2] = Point3i(voxel.x, voxel.y - 1, voxel.z + 1);
-            voxels[3] = Point3i(voxel.x, voxel.y + 1, voxel.z - 1);
-            voxels[4] = Point3i(voxel.x + 1, voxel.y - 1, voxel.z + 1);
-            voxels[5] = Point3i(voxel.x - 1, voxel.y - 1, voxel.z + 1);
-            voxels[6] = Point3i(voxel.x + 1, voxel.y + 1, voxel.z - 1);
-            voxels[7] = Point3i(voxel.x - 1, voxel.y + 1, voxel.z - 1);
-			if(x != xmax && (isSurface(voxels[0]) ||
+            
+			if(x != xmax && (isSurface(neighborAt(0)) ||
 			(y != ymin && isSurface(Point3i(x+1, y-1, z)) || y != ymax && isSurface(Point3i(x+1, y+1, z))) && 
 			(z != zmin && isSurface(Point3i(x+1, y, z-1)) || z != zmax && isSurface(Point3i(x+1, y, z+1))) &&
-            !isInterior(voxels[0])))
-				addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-			if(x != xmin && (isSurface(voxels[1]) ||
+            !isInterior(neighborAt(0))))
+				addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+			if(x != xmin && (isSurface(neighborAt(1)) ||
 			(y != ymin && isSurface(Point3i(x-1, y-1, z)) || y != ymax && isSurface(Point3i(x-1, y+1, z))) && 
 			(z != zmin && isSurface(Point3i(x-1, y, z-1)) || z != zmax && isSurface(Point3i(x-1, y, z+1))) &&
-            !isInterior(voxels[1])))
-				addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-			if(y != ymin && z != zmax && (isSurface(voxels[2])))
-				addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-			if(y != ymax && z != zmin && (isSurface(voxels[3])))
-				addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-			if(x != xmax && y != ymin && z != zmax && (isSurface(voxels[4]) ||
+            !isInterior(neighborAt(1))))
+				addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+			if(y != ymin && z != zmax && (isSurface(neighborAt(2))))
+				addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+			if(y != ymax && z != zmin && (isSurface(neighborAt(3))))
+				addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+			if(x != xmax && y != ymin && z != zmax && (isSurface(neighborAt(4)) ||
 			isSurface(Point3i(x+1, y, z+1)) && isSurface(Point3i(x+1, y-1, z)) &&
-            !isInterior(voxels[4])))
-				addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-			if(x != xmin && y != ymin && z != zmax && (isSurface(voxels[5]) ||
+            !isInterior(neighborAt(4))))
+				addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+			if(x != xmin && y != ymin && z != zmax && (isSurface(neighborAt(5)) ||
 			isSurface(Point3i(x-1, y, z+1)) && isSurface(Point3i(x-1, y-1, z)) &&
-            !isInterior(voxels[5])))
-				addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-			if(x != xmax && y != ymax && z != zmin && (isSurface(voxels[6]) ||
+            !isInterior(neighborAt(5))))
+				addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+			if(x != xmax && y != ymax && z != zmin && (isSurface(neighborAt(6)) ||
 			isSurface(Point3i(x+1, y, z-1)) && isSurface(Point3i(x+1, y+1, z)) &&
-            !isInterior(voxels[6]))) 
-				addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(x != xmin && y != ymax && z != zmin && (isSurface(voxels[7]) ||
+            !isInterior(neighborAt(6)))) 
+				addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(x != xmin && y != ymax && z != zmin && (isSurface(neighborAt(7)) ||
 			isSurface(Point3i(x-1, y, z-1)) && isSurface(Point3i(x-1, y+1, z)) &&
-            !isInterior(voxels[7])))
-				addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+            !isInterior(neighborAt(7))))
+				addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 		break;
 		case 8: // zx plnae 45 degree clockwise
-            voxels[0] = Point3i(voxel.x + 1, voxel.y, voxel.z);
-            voxels[1] = Point3i(voxel.x - 1, voxel.y, voxel.z);
-            voxels[2] = Point3i(voxel.x, voxel.y + 1, voxel.z + 1);
-            voxels[3] = Point3i(voxel.x, voxel.y - 1, voxel.z - 1);
-            voxels[4] = Point3i(voxel.x + 1, voxel.y + 1, voxel.z + 1);
-            voxels[5] = Point3i(voxel.x + 1, voxel.y - 1, voxel.z - 1);
-            voxels[6] = Point3i(voxel.x - 1, voxel.y + 1, voxel.z + 1);
-            voxels[7] = Point3i(voxel.x - 1, voxel.y - 1, voxel.z - 1);
-			if(x != xmax && (isSurface(voxels[0]) ||
+			if(x != xmax && (isSurface(neighborAt(0)) ||
 			(y != ymin && isSurface(Point3i(x+1, y-1, z)) || y != ymax && isSurface(Point3i(x+1, y+1, z))) &&
 			(z != zmin && isSurface(Point3i(x+1, y, z-1)) || z != zmax && isSurface(Point3i(x+1, y, z+1))) &&
-            !isInterior(voxels[0])))
-				addNeighbor(voxel, voxels[0], 0, plane, neighbors);
-			if(x != xmin && (isSurface(voxels[1]) ||
+            !isInterior(neighborAt(0))))
+				addNeighbor(voxel, neighborAt(0), 0, plane, neighbors);
+			if(x != xmin && (isSurface(neighborAt(1)) ||
 			(y != ymin && isSurface(Point3i(x-1, y-1, z)) || y != ymax && isSurface(Point3i(x-1, y+1, z))) &&
 			(z != zmin && isSurface(Point3i(x-1, y, z-1)) || z != zmax && isSurface(Point3i(x-1, y, z+1))) &&
-            !isInterior(voxels[1])))
-				addNeighbor(voxel, voxels[1], 1, plane, neighbors);
-			if(y != ymax && z != zmax && isSurface(voxels[2])) 
-				addNeighbor(voxel, voxels[2], 2, plane, neighbors);
-			if(y != ymin && z != zmin && isSurface(voxels[3])) 
-				addNeighbor(voxel, voxels[3], 3, plane, neighbors);
-			if(x != xmax && y != ymax && z != zmax && (isSurface(voxels[4]) ||
+            !isInterior(neighborAt(1))))
+				addNeighbor(voxel, neighborAt(1), 1, plane, neighbors);
+			if(y != ymax && z != zmax && isSurface(neighborAt(2))) 
+				addNeighbor(voxel, neighborAt(2), 2, plane, neighbors);
+			if(y != ymin && z != zmin && isSurface(neighborAt(3))) 
+				addNeighbor(voxel, neighborAt(3), 3, plane, neighbors);
+			if(x != xmax && y != ymax && z != zmax && (isSurface(neighborAt(4)) ||
 			isSurface(Point3i(x+1, y, z+1)) && isSurface(Point3i(x+1, y+1, z)) &&
-            !isInterior(voxels[4])))
-				addNeighbor(voxel, voxels[4], 4, plane, neighbors);
-			if(x != xmax && y != ymin && z != zmin && (isSurface(voxels[5]) ||
+            !isInterior(neighborAt(4))))
+				addNeighbor(voxel, neighborAt(4), 4, plane, neighbors);
+			if(x != xmax && y != ymin && z != zmin && (isSurface(neighborAt(5)) ||
 			isSurface(Point3i(x+1, y, z-1)) && isSurface(Point3i(x+1, y-1, z)) &&
-            !isInterior(voxels[5])))
-				addNeighbor(voxel, voxels[5], 5, plane, neighbors);
-			if(x != xmin && y != ymax && z != zmax && (isSurface(voxels[6]) ||
+            !isInterior(neighborAt(5))))
+				addNeighbor(voxel, neighborAt(5), 5, plane, neighbors);
+			if(x != xmin && y != ymax && z != zmax && (isSurface(neighborAt(6)) ||
 			isSurface(Point3i(x-1, y, z+1)) && isSurface(Point3i(x-1, y+1, z)) &&
-            !isInterior(voxels[6])))
-				addNeighbor(voxel, voxels[6], 6, plane, neighbors);
-			if(x != xmin && y != ymin && z != zmin && (isSurface(voxels[7]) ||
+            !isInterior(neighborAt(6))))
+				addNeighbor(voxel, neighborAt(6), 6, plane, neighbors);
+			if(x != xmin && y != ymin && z != zmin && (isSurface(neighborAt(7)) ||
 			isSurface(Point3i(x-1, y, z-1)) && isSurface(Point3i(x-1, y-1, z)) &&
-            !isInterior(voxels[7])))
-				addNeighbor(voxel, voxels[7], 7, plane, neighbors);
+            !isInterior(neighborAt(7))))
+				addNeighbor(voxel, neighborAt(7), 7, plane, neighbors);
 	}
 }
 
 void CurvatureEstimatorSerial::addNeighbor(
     Point3i voxel, Point3i neighbor, int neighborId, int plane,
-    std::vector<std::pair<Point3i, uint8_t>>& neighbors) {
+    std::array<Candidate, 8>& neighbors) {
     // Add the neighbor voxel and its corresponding chain code to the neighbors vector
-    neighbors[neighborId].first = neighbor;
+    neighbors[neighborId].voxelID = static_cast<int>(getVoxelID(neighbor.x, neighbor.y, neighbor.z));
     switch(plane/3) {
-        case 0: neighbors[neighborId].second = getChainCode(Point2i(neighbor.x, neighbor.y), Point2i(voxel.x, voxel.y)); break;
-		case 1: neighbors[neighborId].second = getChainCode(Point2i(neighbor.y, neighbor.z), Point2i(voxel.y, voxel.z)); break;
-		case 2: neighbors[neighborId].second = getChainCode(Point2i(neighbor.z, neighbor.x), Point2i(voxel.z, voxel.x)); break;
+        case 0: neighbors[neighborId].chainCode = getChainCode(Point2i(neighbor.x, neighbor.y), Point2i(voxel.x, voxel.y)); break;
+		case 1: neighbors[neighborId].chainCode = getChainCode(Point2i(neighbor.y, neighbor.z), Point2i(voxel.y, voxel.z)); break;
+		case 2: neighbors[neighborId].chainCode = getChainCode(Point2i(neighbor.z, neighbor.x), Point2i(voxel.z, voxel.x)); break;
     }
 }
 

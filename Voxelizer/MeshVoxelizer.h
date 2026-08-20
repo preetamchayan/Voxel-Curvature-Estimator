@@ -16,7 +16,7 @@
 #define METAL   5   // MacOS-only,   Apple-only,     GPU-only
 
 #ifndef VOXELIZER
-#define VOXELIZER DIRECTX
+#define VOXELIZER VULKAN
 #endif
 
 class MeshVoxelizer {
