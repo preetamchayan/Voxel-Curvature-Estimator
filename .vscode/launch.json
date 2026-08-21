@@ -140,34 +140,42 @@
       "preLaunchTask": "build (release - Mac)"
     },
 
-    {
-      "name": "Debug (Cuda)",
-      "type": "cppdbg",
+        {
+      "name": "Debug (Cuda Windows)",
+      "type": "cppvsdbg",
       "request": "launch",
-      "program": "${workspaceFolder}/cudaApp",
+      "program": "${workspaceFolder}\\cudaApp.exe",
       "args": [
-        "assets/armadillo.obj",
-        "output/armadillo_voxelized.obj",
-        "output/armadillo_curvature.obj"
+        "assets\\armadillo.obj",
+        "output\\armadillo_voxelized.obj",
+        "output\\armadillo_curvature.obj"
       ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [],
-      "externalConsole": false,
-      "MIMode": "gdb",
-      "miDebuggerPath": "/usr/local/cuda/bin/cuda-gdb",
-      "setupCommands": [
-        {
-          "description": "Enable pretty-printing for gdb",
-          "text": "-enable-pretty-printing",
-          "ignoreFailures": true
-        }
-      ],
-      "preLaunchTask": "build (debug - Cuda)"
+      "console": "integratedTerminal",
+      "preLaunchTask": "build (debug - Cuda Windows)"
     },
 
     {
-      "name": "Release (Cuda)",
+      "name": "Release (Cuda Windows)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}\\cudaApp.exe",
+      "args": [
+        "assets\\armadillo.obj",
+        "output\\armadillo_voxelized.obj",
+        "output\\armadillo_curvature.obj"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "console": "integratedTerminal",
+      "preLaunchTask": "build (release - Cuda Windows)"
+    },
+
+    {
+      "name": "Debug (Cuda Linux)",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/cudaApp",
@@ -189,7 +197,33 @@
           "ignoreFailures": true
         }
       ],
-      "preLaunchTask": "build (release - Cuda)"
+      "preLaunchTask": "build (debug - Cuda Linux)"
+    },
+
+    {
+      "name": "Release (Cuda Linux)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/cudaApp",
+      "args": [
+        "assets/armadillo.obj",
+        "output/armadillo_voxelized.obj",
+        "output/armadillo_curvature.obj"
+      ],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/local/cuda/bin/cuda-gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "build (release - Cuda Linux)"
     }
   ]
 }
