@@ -36,7 +36,7 @@
     },
 
     {
-      "label": "compile cuda backend (debug - Linux)",
+      "label": "compile voxelizer cuda backend (debug - Linux)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -54,7 +54,7 @@
     },
 
     {
-      "label": "compile cuda kernel (debug - Linux)",
+      "label": "compile voxelizer cuda kernel (debug - Linux)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -108,7 +108,7 @@
     },
 
     {
-      "label": "compile cuda backend (release - Linux)",
+      "label": "compile voxelizer cuda backend (release - Linux)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -125,7 +125,7 @@
     },
 
     {
-      "label": "compile cuda kernel (release - Linux)",
+      "label": "compile voxelizer cuda kernel (release - Linux)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -176,7 +176,7 @@
     },
 
     {
-      "label": "compile cuda backend (debug - Windows)",
+      "label": "compile voxelizer cuda backend (debug - Windows)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -192,7 +192,7 @@
     },
 
     {
-      "label": "compile cuda kernel (debug - Windows)",
+      "label": "compile voxelizer cuda kernel (debug - Windows)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -240,7 +240,7 @@
     },
 
     {
-      "label": "compile cuda backend (release - Windows)",
+      "label": "compile voxelizer cuda backend (release - Windows)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -255,7 +255,7 @@
     },
 
     {
-      "label": "compile cuda kernel (release - Windows)",
+      "label": "compile voxelizer cuda kernel (release - Windows)",
       "type": "shell",
       "command": "nvcc",
       "args": [
@@ -529,8 +529,8 @@
     {
       "label": "build (debug - Cuda Windows)",
       "dependsOn": [
-        "compile cuda backend (debug - Windows)",
-        "compile cuda kernel (debug - Windows)",
+        "compile voxelizer cuda backend (debug - Windows)",
+        "compile voxelizer cuda kernel (debug - Windows)",
         "compile curvature cuda backend (debug - Windows)",
         "compile curvature cuda kernel (debug - Windows)",
         "compile Vulkan shaders"
@@ -588,8 +588,8 @@
     {
       "label": "build (release - Cuda Windows)",
       "dependsOn": [
-        "compile cuda backend (release - Windows)",
-        "compile cuda kernel (release - Windows)",
+        "compile voxelizer cuda backend (release - Windows)",
+        "compile voxelizer cuda kernel (release - Windows)",
         "compile curvature cuda backend (release - Windows)",
         "compile curvature cuda kernel (release - Windows)",
         "compile Vulkan shaders"
@@ -646,8 +646,8 @@
     {
       "label": "build (debug - Cuda Linux)",
       "dependsOn": [
-        "compile cuda backend (debug - Linux)",
-        "compile cuda kernel (debug - Linux)",
+        "compile voxelizer cuda backend (debug - Linux)",
+        "compile voxelizer cuda kernel (debug - Linux)",
         "compile curvature cuda backend (debug - Linux)",
         "compile curvature cuda kernel (debug - Linux)",
         "compile Vulkan shaders"
@@ -693,8 +693,8 @@
     {
       "label": "build (release - Cuda Linux)",
       "dependsOn": [
-        "compile cuda backend (release - Linux)",
-        "compile cuda kernel (release - Linux)",
+        "compile voxelizer cuda backend (release - Linux)",
+        "compile voxelizer cuda kernel (release - Linux)",
         "compile curvature cuda backend (release - Linux)",
         "compile curvature cuda kernel (release - Linux)",
         "compile Vulkan shaders"
