@@ -10,6 +10,7 @@ benchmark/results/
 benchmark/__pycache__/
 benchmark/*.obj
 benchmark/*.mtl
+build/
 *.obj
 *.pdb
 *.ilk

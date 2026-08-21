@@ -1,0 +1,6 @@
+add_library(voxelizer_serial_triangle_voxelizer STATIC
+    TriangleVoxelizer.cpp
+)
+
+target_link_libraries(voxelizer_serial_triangle_voxelizer PUBLIC project_options helper)
+target_include_directories(voxelizer_serial_triangle_voxelizer PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
