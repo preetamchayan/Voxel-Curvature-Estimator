@@ -124,9 +124,9 @@ void CurvatureEstimatorCuda::estimateCurvature(int curvLength,
         dim3 grid((static_cast<unsigned int>(surfaceVoxelIds.size()) + dim - 1) / dim);
         const int surfaceVoxelCount = static_cast<int>(surfaceVoxelIds.size());
 
-        estimateCurvature<<<grid, block>>>(voxelsBuffer, curvaturesBuffer, surfaceVoxelIdsBuffer,
-                                           surfaceVoxelCount, curvLength,
-                                           dims.width, dims.height, dims.depth);
+        ::estimateCurvature<<<grid, block>>>(voxelsBuffer, curvaturesBuffer, surfaceVoxelIdsBuffer,
+                                             surfaceVoxelCount, curvLength,
+                                             dims.width, dims.height, dims.depth);
         checkCudaError(cudaGetLastError(), "Failed to launch Cuda estimateCurvature kernel");
         checkCudaError(cudaDeviceSynchronize(), "Failed to synchronize Cuda estimateCurvature kernel");
     }

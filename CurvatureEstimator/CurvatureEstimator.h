@@ -11,7 +11,7 @@
 #define METAL   5   // MacOS-only,   Apple-only,     GPU-only
 
 #ifndef CURVATURE_ESTIMATOR
-#define CURVATURE_ESTIMATOR DIRECTX
+#define CURVATURE_ESTIMATOR SERIAL
 #endif
 
 #include "../Helper/GeometryTypes.h"
