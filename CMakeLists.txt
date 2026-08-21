@@ -19,6 +19,116 @@ option(ENABLE_DIRECTX "Enable DirectX backends when available" ON)
 option(ENABLE_METAL "Enable Metal backends when available" ON)
 option(BUILD_VULKAN_SHADERS "Compile Vulkan GLSL compute shaders to SPIR-V when possible" ON)
 
+# Prefer the same SDK environment variables used by the VS Code tasks when they
+# are available. Users can still override any of these with normal CMake cache
+# variables on the command line or in a preset.
+if(DEFINED ENV{OPENCL_SDK})
+    file(TO_CMAKE_PATH "$ENV{OPENCL_SDK}" OPENCL_SDK_ROOT)
+    list(APPEND CMAKE_PREFIX_PATH "${OPENCL_SDK_ROOT}")
+
+    if(NOT OpenCL_INCLUDE_DIR AND EXISTS "${OPENCL_SDK_ROOT}/include/CL/cl.h")
+        set(OpenCL_INCLUDE_DIR "${OPENCL_SDK_ROOT}/include" CACHE PATH "OpenCL include directory")
+    endif()
+
+    if(NOT OpenCL_LIBRARY)
+        if(WIN32)
+            set(OPENCL_LIBRARY_CANDIDATES
+                "${OPENCL_SDK_ROOT}/lib/OpenCL.lib"
+                "${OPENCL_SDK_ROOT}/lib/x64/OpenCL.lib"
+                "${OPENCL_SDK_ROOT}/Lib/OpenCL.lib"
+                "${OPENCL_SDK_ROOT}/Lib/x64/OpenCL.lib"
+            )
+        elseif(APPLE)
+            set(OPENCL_LIBRARY_CANDIDATES
+                "${OPENCL_SDK_ROOT}/lib/libOpenCL.dylib"
+            )
+        else()
+            set(OPENCL_LIBRARY_CANDIDATES
+                "${OPENCL_SDK_ROOT}/lib/libOpenCL.so"
+                "${OPENCL_SDK_ROOT}/lib64/libOpenCL.so"
+            )
+        endif()
+
+        foreach(OPENCL_LIBRARY_CANDIDATE IN LISTS OPENCL_LIBRARY_CANDIDATES)
+            if(EXISTS "${OPENCL_LIBRARY_CANDIDATE}")
+                set(OpenCL_LIBRARY "${OPENCL_LIBRARY_CANDIDATE}" CACHE FILEPATH "OpenCL library")
+                break()
+            endif()
+        endforeach()
+    endif()
+endif()
+
+if(DEFINED ENV{VULKAN_SDK})
+    file(TO_CMAKE_PATH "$ENV{VULKAN_SDK}" VULKAN_SDK_ROOT)
+    list(APPEND CMAKE_PREFIX_PATH "${VULKAN_SDK_ROOT}")
+
+    if(NOT Vulkan_INCLUDE_DIR AND EXISTS "${VULKAN_SDK_ROOT}/Include/vulkan/vulkan.h")
+        set(Vulkan_INCLUDE_DIR "${VULKAN_SDK_ROOT}/Include" CACHE PATH "Vulkan include directory")
+    endif()
+
+    if(NOT Vulkan_LIBRARY)
+        if(WIN32)
+            set(VULKAN_LIBRARY_CANDIDATES
+                "${VULKAN_SDK_ROOT}/Lib/vulkan-1.lib"
+                "${VULKAN_SDK_ROOT}/lib/vulkan-1.lib"
+            )
+        elseif(APPLE)
+            set(VULKAN_LIBRARY_CANDIDATES
+                "${VULKAN_SDK_ROOT}/lib/libvulkan.dylib"
+            )
+        else()
+            set(VULKAN_LIBRARY_CANDIDATES
+                "${VULKAN_SDK_ROOT}/lib/libvulkan.so"
+                "${VULKAN_SDK_ROOT}/lib64/libvulkan.so"
+            )
+        endif()
+
+        foreach(VULKAN_LIBRARY_CANDIDATE IN LISTS VULKAN_LIBRARY_CANDIDATES)
+            if(EXISTS "${VULKAN_LIBRARY_CANDIDATE}")
+                set(Vulkan_LIBRARY "${VULKAN_LIBRARY_CANDIDATE}" CACHE FILEPATH "Vulkan library")
+                break()
+            endif()
+        endforeach()
+    endif()
+
+    if(NOT Vulkan_GLSLANG_VALIDATOR_EXECUTABLE)
+        if(WIN32)
+            set(GLSLANG_VALIDATOR_CANDIDATES
+                "${VULKAN_SDK_ROOT}/Bin/glslangValidator.exe"
+                "${VULKAN_SDK_ROOT}/bin/glslangValidator.exe"
+            )
+        else()
+            set(GLSLANG_VALIDATOR_CANDIDATES
+                "${VULKAN_SDK_ROOT}/bin/glslangValidator"
+                "${VULKAN_SDK_ROOT}/Bin/glslangValidator"
+            )
+        endif()
+
+        foreach(GLSLANG_VALIDATOR_CANDIDATE IN LISTS GLSLANG_VALIDATOR_CANDIDATES)
+            if(EXISTS "${GLSLANG_VALIDATOR_CANDIDATE}")
+                set(Vulkan_GLSLANG_VALIDATOR_EXECUTABLE "${GLSLANG_VALIDATOR_CANDIDATE}" CACHE FILEPATH "glslangValidator executable")
+                break()
+            endif()
+        endforeach()
+    endif()
+endif()
+
+if(DEFINED ENV{CUDA_PATH})
+    file(TO_CMAKE_PATH "$ENV{CUDA_PATH}" CUDA_SDK_ROOT)
+    list(APPEND CMAKE_PREFIX_PATH "${CUDA_SDK_ROOT}")
+    if(NOT CUDAToolkit_ROOT)
+        set(CUDAToolkit_ROOT "${CUDA_SDK_ROOT}" CACHE PATH "CUDA Toolkit root")
+    endif()
+
+    if(NOT CMAKE_CUDA_COMPILER)
+        if(WIN32 AND EXISTS "${CUDA_SDK_ROOT}/bin/nvcc.exe")
+            set(CMAKE_CUDA_COMPILER "${CUDA_SDK_ROOT}/bin/nvcc.exe" CACHE FILEPATH "CUDA compiler")
+        elseif(EXISTS "${CUDA_SDK_ROOT}/bin/nvcc")
+            set(CMAKE_CUDA_COMPILER "${CUDA_SDK_ROOT}/bin/nvcc" CACHE FILEPATH "CUDA compiler")
+        endif()
+    endif()
+endif()
+
 include(CheckLanguage)
 
 find_package(OpenCL QUIET)

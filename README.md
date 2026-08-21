@@ -203,6 +203,16 @@ If you want reproducible builds, prefer explicit backend selection instead of `A
 | `BUILD_VULKAN_SHADERS` | `ON` | Compile Vulkan `.comp` shaders to `.spv` using `glslangValidator` when available |
 | `CMAKE_CUDA_ARCHITECTURES` | `native` if CUDA is enabled and unspecified | CUDA GPU architectures to compile for |
 
+CMake also honors common SDK environment variables used by the VS Code task configuration:
+
+| Environment variable | Used for |
+|---|---|
+| `OPENCL_SDK` | OpenCL include and library discovery |
+| `VULKAN_SDK` | Vulkan include/library discovery and `glslangValidator` lookup |
+| `CUDA_PATH` | CUDA Toolkit root and `nvcc` lookup |
+
+DirectX is detected on Windows through the Windows SDK libraries, and Metal is detected on Apple platforms through the system frameworks.
+
 ---
 
 ## Requirements
@@ -268,6 +278,36 @@ find_package(CUDAToolkit)
 ---
 
 ## Building
+
+### Build command
+
+After configuring a build directory with `cmake -S . -B <build-dir>`, compile the project with:
+
+```bash
+cmake --build <build-dir> --config Release
+```
+
+Replace `<build-dir>` with the directory used during configuration, such as `build/serial`, `build/auto`, or `build/cuda`.
+
+Examples:
+
+```bash
+cmake --build build/serial --config Release
+cmake --build build/auto --config Release
+cmake --build build/cuda --config Release
+```
+
+The `--config Release` argument is required for multi-configuration generators such as Visual Studio and is harmless for most single-configuration generators.
+
+### VS Code tasks and debugging
+
+VS Code users can use the checked-in `.vscode` configuration directly instead of typing the CMake commands manually.
+
+- Use **Terminal > Run Task...** to run build tasks defined in `.vscode/tasks.json`.
+- Use **Run and Debug** to start debugging configurations defined in `.vscode/launch.json`.
+- Make sure the selected task/configuration matches the backend and build directory you want to use.
+
+These files are intended to provide a quick editor-integrated workflow for configuring, building, running, and debugging the project from inside VS Code.
 
 ### Serial-only build, most portable
 
