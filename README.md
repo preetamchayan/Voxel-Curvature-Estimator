@@ -474,8 +474,13 @@ On Windows with a multi-config generator such as Visual Studio, the executable i
 
 At runtime, the program asks interactively for:
 
-1. Voxelization scale factor
-2. Curve length for curvature estimation
+1. __Voxelization scale factor__
+    * Decides how many surface voxels would be generated.
+2. __Curve length for curvature estimation__
+    * Decides the neighborhood locality.
+    * Smaller neighborhood produces low-curvature values even in high-curvature regions.
+    * A very large neighborhood does quite the opposite; so, some balance is needed.
+    * Do some hit-and-trial to see which curve-length suits which model at what scale factor.
 
 ---
 
