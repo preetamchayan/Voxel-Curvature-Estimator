@@ -5,7 +5,12 @@ add_library(curvature_estimator_opencl STATIC EXCLUDE_FROM_ALL
 target_link_libraries(curvature_estimator_opencl PUBLIC
     project_options
     helper
-    OpenCL::OpenCL
+    "-framework OpenCL"
 )
 
-target_include_directories(curvature_estimator_opencl PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(curvature_estimator_opencl PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk/System/Library/Frameworks/OpenCL.framework/Versions/A/Headers
+    /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk/System/Library/Frameworks/OpenCL.framework/Versions/A/Headers
+    /System/Library/Frameworks/OpenCL.framework/Versions/A/Headers
+)
