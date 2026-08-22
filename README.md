@@ -310,6 +310,15 @@ VS Code users can use the checked-in `.vscode` configuration directly instead of
 
 These files are intended to provide a quick editor-integrated workflow for configuring, building, running, and debugging the project from inside VS Code.
 
+To choose a particular backend for voxelizer inside VS code, look for something like
+```cpp
+#indef VOXELIZER
+#define VOXELIZER SERIAL
+#endif
+```
+in `Voxelizer/MeshVoxelizer.h` and change your backend from the one that you need and is available on your system.
+Similarly, choose a backend for curvature estimator in `CurvatureEstimator/CurvatureEstimator.h`.
+
 ### Serial-only build, most portable
 
 This is the best first build to verify the toolchain.
