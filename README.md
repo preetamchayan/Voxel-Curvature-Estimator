@@ -515,3 +515,35 @@ This project intentionally keeps the backend hierarchy modular:
 - The root `CMakeLists.txt` owns global options, dependency detection, and final executable construction.
 
 This makes it straightforward to add new backends or replace a backend implementation without changing the rest of the build graph.
+
+---
+
+## Citation
+
+If you use this project in your research or work, please cite it as:
+
+```bibtex
+@software{voxel_curvature_estimator_2026,
+  author = {Chatterjee, Preetam Chayan},
+  title = {Voxel Curvature Estimator},
+  year = {2026},
+  url = {https://github.com/preetamchayan/Voxel-Curvature-Estimator}
+}
+```
+
+Or in text format:
+
+> Chatterjee, P. C. (2026). Voxel Curvature Estimator. Retrieved from https://github.com/preetamchayan/Voxel-Curvature-Estimator
+
+---
+
+## License
+
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for the full text.
+
+You are free to use, modify, and distribute this software for any purpose, including commercial applications, provided that:
+
+1. The original copyright notice and license text are included in any copies or substantial portions of the software.
+2. The software is provided "as is" without warranty of any kind.
+
+For more details, see the [LICENSE](LICENSE) file.
