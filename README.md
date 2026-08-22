@@ -316,7 +316,7 @@ To choose a particular backend for voxelizer inside VS code, look for something 
 #define VOXELIZER SERIAL
 #endif
 ```
-in `Voxelizer/MeshVoxelizer.h` and change your backend from the one that you need and is available on your system.
+in `Voxelizer/MeshVoxelizer.h` and change `SERIAL` to the backend you wish to execute and is available on your system.
 Similarly, choose a backend for curvature estimator in `CurvatureEstimator/CurvatureEstimator.h`.
 
 ### Serial-only build, most portable
