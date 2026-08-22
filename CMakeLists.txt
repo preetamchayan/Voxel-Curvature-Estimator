@@ -134,6 +134,26 @@ include(CheckLanguage)
 find_package(OpenCL QUIET)
 find_package(Vulkan QUIET)
 
+if(APPLE)
+    set(OpenCL_INCLUDE_DIR "")
+    foreach(_candidate
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk/System/Library/Frameworks/OpenCL.framework/Versions/A/Headers"
+        "/Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk/System/Library/Frameworks/OpenCL.framework/Versions/A/Headers"
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks/OpenCL.framework/Versions/A/Headers"
+        "/System/Library/Frameworks/OpenCL.framework/Versions/A/Headers"
+    )
+        if(EXISTS "${_candidate}/CL/cl.h")
+            set(OpenCL_INCLUDE_DIR "${_candidate}")
+            break()
+        endif()
+    endforeach()
+
+    if(OpenCL_INCLUDE_DIR)
+        set(OpenCL_FOUND TRUE)
+        set(OpenCL_LIBRARY "/System/Library/Frameworks/OpenCL.framework")
+    endif()
+endif()
+
 set(HAVE_OPENCL OFF)
 if(ENABLE_OPENCL AND OpenCL_FOUND)
     set(HAVE_OPENCL ON)
@@ -203,8 +223,6 @@ function(resolve_backend INPUT_VAR OUTPUT_VAR)
         message(FATAL_ERROR "${INPUT_VAR}=DIRECTX was requested, but DirectX is only available on Windows and ENABLE_DIRECTX must be ON")
     elseif(resolved STREQUAL "METAL" AND NOT HAVE_METAL)
         message(FATAL_ERROR "${INPUT_VAR}=METAL was requested, but Metal is only available on Apple platforms and ENABLE_METAL must be ON")
-    elseif(resolved STREQUAL "METAL" AND "${INPUT_VAR}" STREQUAL "CURVATURE_BACKEND")
-        message(FATAL_ERROR "CURVATURE_BACKEND=METAL was requested, but CurvatureEstimator/Parallel/Metal is currently empty")
     endif()
 
     set(${OUTPUT_VAR} ${resolved} PARENT_SCOPE)
