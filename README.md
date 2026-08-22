@@ -12,7 +12,7 @@ The codebase supports multiple compute backends so the same high-level workflow 
 - Vulkan compute
 - CUDA
 - DirectX compute
-- Metal, for the voxelizer only at the moment
+- Metal
 
 The build system is CMake-based and organized hierarchically so each module owns its own build description.
 
@@ -117,7 +117,8 @@ The build system is CMake-based and organized hierarchically so each module owns
         └── Metal/
             ├── CMakeLists.txt
             ├── CurvatureEstimatorMetal.h
-            └── CurvatureEstimatorMetal.mm
+            ├── CurvatureEstimatorMetal.mm
+            └── CurvatureEstimatorKernel.metal
 ```
 
 ---
@@ -159,7 +160,7 @@ Both default to `AUTO`.
 | Vulkan | Yes | Yes | Vendor-neutral Vulkan compute path |
 | CUDA | Yes | Yes | NVIDIA CUDA only |
 | DirectX | Yes | Yes | Windows only |
-| Metal | Yes | No | Apple only; curvature Metal files are currently empty |
+| Metal | Yes | Yes | Apple only |
 
 ---
 
@@ -488,8 +489,8 @@ The current `main.cpp` computes and exports the curvature files and curvature lo
 
 - CUDA is NVIDIA-specific and requires the CUDA Toolkit.
 - DirectX is Windows-only.
-- Metal is Apple-only.
-- The Metal curvature estimator is not currently implemented; `CURVATURE_BACKEND=METAL` will fail during CMake configuration with a clear message.
+- Metal is Apple-only and is implemented for both voxelization and curvature estimation when the system frameworks are available.
+- For `AUTO`, the project prefers the first available GPU backend for the voxelizer, while the curvature estimator still falls back to `SERIAL` unless a curvature backend is explicitly selected or a supported GPU backend is available.
 - Vulkan shader compilation requires `glslangValidator` if `.spv` files are not already present.
 - `AUTO` is convenient, but explicit backend selection is recommended for benchmarking and reproducibility.
 
