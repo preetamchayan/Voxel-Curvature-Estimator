@@ -481,6 +481,7 @@ At runtime, the program asks interactively for:
     * Smaller neighborhood produces low-curvature values even in high-curvature regions.
     * A very large neighborhood does quite the opposite; so, some balance is needed.
     * Do some hit-and-trial to see which curve-length suits which model at what scale factor.
+    * Ideally, curve length and scale factor are directly proportional for a particular model.
 
 ---
 
