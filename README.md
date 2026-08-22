@@ -312,7 +312,7 @@ These files are intended to provide a quick editor-integrated workflow for confi
 
 To choose a particular backend for voxelizer inside VS code, look for something like
 ```cpp
-#indef VOXELIZER
+#ifndef VOXELIZER
 #define VOXELIZER SERIAL
 #endif
 ```
