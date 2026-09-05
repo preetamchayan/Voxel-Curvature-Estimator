@@ -11,9 +11,11 @@ benchmark/__pycache__/
 benchmark/*.obj
 benchmark/*.mtl
 build/
+Helper/.DS_Store
 *.obj
 *.pdb
 *.ilk
 *.exe
-.DS_Store
+*.DS_Store
 metalApp
+*.png

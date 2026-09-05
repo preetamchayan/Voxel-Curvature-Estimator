@@ -505,7 +505,7 @@ The current `main.cpp` computes and exports the curvature files and curvature lo
 - CUDA is NVIDIA-specific and requires the CUDA Toolkit.
 - DirectX is Windows-only.
 - Metal is Apple-only and is implemented for both voxelization and curvature estimation when the system frameworks are available.
-- For `AUTO`, the project prefers the first available GPU backend for the voxelizer, while the curvature estimator still falls back to `SERIAL` unless a curvature backend is explicitly selected or a supported GPU backend is available.
+- For `AUTO`, the project prefers the first available GPU backend for both voxelizer and curvature estimator. If none found, they fall back to `SERIAL`.
 - Vulkan shader compilation requires `glslangValidator` if `.spv` files are not already present.
 - `AUTO` is convenient, but explicit backend selection is recommended for benchmarking and reproducibility.
 
